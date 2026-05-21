@@ -1,0 +1,924 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>sm@rtfab · Load Optimisation & Vehicle Selection</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0a1628;--navy2:#0f2040;--blue:#1565C0;--blue2:#1976D2;--blue3:#1E88E5;
+  --sky:#E3F2FD;--sky2:#BBDEFB;--sky3:#90CAF9;
+  --white:#FFFFFF;--off:#F7FAFF;--border:#D0DEED;--border2:#B8CFEB;
+  --txt:#0D1B2A;--txt2:#3C5A7A;--txt3:#6B8BAD;
+  --green:#1B5E20;--green2:#2E7D32;--green-bg:#E8F5E9;--green-brd:#A5D6A7;
+  --red:#B71C1C;--red2:#C62828;--red-bg:#FFEBEE;--red-brd:#EF9A9A;
+  --amber:#E65100;--amber-bg:#FFF3E0;--amber-brd:#FFCC80;
+  --r:10px;--r2:6px;--sh:0 2px 12px rgba(21,101,192,.10);--sh2:0 4px 24px rgba(21,101,192,.16);
+  --mono:'DM Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:var(--sans);font-size:14px;color:var(--txt);background:var(--off);}
+
+/* TOP BAR */
+.topbar{background:var(--navy);display:flex;align-items:center;gap:0;padding:0 0 0 24px;height:52px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.4);}
+.tb-brand{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--sky3);letter-spacing:2px;padding-right:20px;border-right:1px solid #1e3a5f;}
+.tb-title{font-size:13px;color:#8BAFD4;padding:0 20px;border-right:1px solid #1e3a5f;}
+.tb-nav{display:flex;height:100%;}
+.tb-nav a{display:flex;align-items:center;padding:0 18px;font-size:12px;color:#8BAFD4;text-decoration:none;letter-spacing:.5px;border-bottom:2px solid transparent;transition:all .15s;cursor:pointer;}
+.tb-nav a:hover{color:var(--white);background:rgba(255,255,255,.05);}
+.tb-nav a.on{color:var(--sky3);border-bottom-color:var(--sky3);background:rgba(255,255,255,.04);}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:12px;padding:0 20px;}
+.tb-badge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:3px;letter-spacing:1px;}
+.tb-badge.idle{background:rgba(255,255,255,.08);color:#8BAFD4;}
+.tb-badge.ready{background:rgba(30,136,229,.25);color:var(--sky3);}
+.tb-badge.done{background:rgba(46,125,50,.25);color:#81C784;}
+.tb-logo{height:26px;object-fit:contain;opacity:.9;}
+
+/* PAGES */
+.page{display:none;min-height:calc(100vh - 52px);}
+.page.active{display:block;}
+
+/* ── PAGE 1 ─ CALCULATOR ───────────────────────────────────────── */
+.p1-layout{display:grid;grid-template-columns:400px 1fr;min-height:calc(100vh - 52px);}
+.p1-left{background:var(--white);border-right:1px solid var(--border);padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+.p1-right{background:var(--off);padding:24px;overflow-y:auto;}
+
+.hero-banner{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 60%,#0d2f5e 100%);border-radius:var(--r);padding:18px 20px;margin-bottom:0;}
+.hero-banner h2{font-size:16px;font-weight:600;color:var(--white);margin-bottom:4px;}
+.hero-banner p{font-size:11px;color:var(--sky3);line-height:1.5;}
+
+/* SECTION CARD */
+.scard{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.scard-head{background:var(--sky);padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--sky2);}
+.scard-icon{width:22px;height:22px;border-radius:5px;background:var(--blue);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.scard-icon svg{width:12px;height:12px;fill:white;}
+.scard-title{font-size:11px;font-weight:600;color:var(--blue);letter-spacing:.8px;text-transform:uppercase;}
+.scard-body{padding:14px;}
+
+/* MODE TOGGLE */
+.mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--border2);border-radius:var(--r2);overflow:hidden;}
+.mode-btn{padding:9px;text-align:center;font-size:11px;font-weight:500;color:var(--txt2);cursor:pointer;background:var(--white);border:none;transition:all .15s;line-height:1.4;}
+.mode-btn:first-child{border-right:1px solid var(--border2);}
+.mode-btn.on{background:var(--blue);color:var(--white);}
+
+/* FORM ELEMENTS */
+.fg{margin-bottom:10px;}
+.fg label{display:block;font-size:10px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r2);font-family:var(--sans);font-size:13px;color:var(--txt);background:var(--white);outline:none;transition:border-color .15s;}
+input:focus,select:focus{border-color:var(--blue3);}
+select{cursor:pointer;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+
+/* MIRROR TOGGLE */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;}
+.toggle-lbl{font-size:12px;color:var(--txt2);}
+.toggle-sw{position:relative;width:38px;height:20px;flex-shrink:0;}
+.toggle-sw input{opacity:0;width:0;height:0;}
+.toggle-sw .sl{position:absolute;inset:0;background:#D0DEED;border-radius:20px;cursor:pointer;transition:.2s;}
+.toggle-sw .sl:before{content:'';position:absolute;width:16px;height:16px;left:2px;top:2px;background:white;border-radius:50%;transition:.2s;}
+.toggle-sw input:checked+.sl{background:var(--blue);}
+.toggle-sw input:checked+.sl:before{transform:translateX(18px);}
+
+.qty-row{display:flex;align-items:center;gap:8px;}
+.qty-row input{flex:1;}
+.qty-lbl{font-size:11px;color:var(--txt3);white-space:nowrap;}
+
+/* VEHICLE CARDS */
+.veh-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px;}
+.vcard{border:2px solid var(--border);border-radius:var(--r2);padding:10px 6px;text-align:center;cursor:pointer;transition:all .15s;background:var(--white);}
+.vcard:hover{border-color:var(--sky3);box-shadow:var(--sh);}
+.vcard.sel{border-color:var(--blue);background:var(--sky);box-shadow:var(--sh);}
+.vcard.eliminated{border-color:var(--red-brd);background:var(--red-bg);opacity:.7;cursor:default;}
+.vcard-name{font-family:var(--mono);font-size:8px;color:var(--txt3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.vcard.sel .vcard-name{color:var(--blue);}
+.vcard-mg{font-size:16px;font-weight:600;color:var(--txt);}
+.vcard-sub{font-size:9px;color:var(--txt3);margin-top:2px;}
+.vcard.sel .vcard-mg{color:var(--blue);}
+.elim-tag{font-size:8px;color:var(--red);font-weight:600;margin-top:2px;}
+
+/* PRIMARY BTN */
+.btn-primary{width:100%;background:var(--blue);color:white;border:none;padding:11px;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.5px;transition:all .15s;box-shadow:var(--sh);}
+.btn-primary:hover{background:var(--blue3);box-shadow:var(--sh2);transform:translateY(-1px);}
+.btn-primary:active{transform:none;}
+.btn-sec{width:100%;background:transparent;color:var(--blue);border:1px solid var(--blue);padding:9px;border-radius:var(--r);font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;margin-top:6px;}
+.btn-sec:hover{background:var(--sky);}
+
+/* RIGHT PANE - EMPTY STATE */
+.empty-r{display:flex;flex-direction:column;align-items:center;justify-content:center;height:calc(100vh - 140px);gap:16px;color:var(--txt3);}
+.empty-r svg{width:64px;height:64px;opacity:.3;}
+.empty-r h3{font-size:16px;font-weight:500;color:var(--txt2);}
+.empty-r p{font-size:12px;text-align:center;max-width:280px;line-height:1.6;}
+
+/* RESULTS AREA */
+.results-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px;}
+.stat-val{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--txt);line-height:1;margin-bottom:4px;}
+.stat-val.good{color:var(--green2);}
+.stat-val.warn{color:var(--amber);}
+.stat-val.bad{color:var(--red2);}
+.stat-lbl{font-size:10px;color:var(--txt3);letter-spacing:.5px;text-transform:uppercase;}
+
+/* VEHICLE COMPARISON TABLE */
+.vtable-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px;}
+.vtable-head{background:var(--navy);padding:12px 16px;display:flex;align-items:center;gap:10px;}
+.vtable-head h3{font-size:12px;font-weight:600;color:var(--white);letter-spacing:.5px;}
+.vtable{width:100%;border-collapse:collapse;}
+.vtable th{background:var(--sky);text-align:left;padding:9px 12px;font-size:10px;font-weight:600;color:var(--blue);letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid var(--sky2);}
+.vtable td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle;}
+.vtable tr:last-child td{border-bottom:none;}
+.vtable tr.best-row{background:#F0F7FF;}
+.vtable tr.elim-row{background:var(--red-bg);opacity:.75;}
+.vtable tr.elim-row td{color:var(--txt3);}
+.best-badge{display:inline-flex;align-items:center;gap:4px;background:var(--blue);color:white;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px;letter-spacing:.5px;}
+.elim-badge{display:inline-flex;align-items:center;gap:4px;background:var(--red-bg);color:var(--red);font-size:9px;font-weight:600;padding:2px 8px;border-radius:3px;border:1px solid var(--red-brd);}
+.ok-badge{display:inline-flex;background:var(--green-bg);color:var(--green2);font-size:9px;font-weight:600;padding:2px 8px;border-radius:3px;border:1px solid var(--green-brd);}
+.warn-badge{background:var(--amber-bg);color:var(--amber);font-size:9px;font-weight:600;padding:2px 8px;border-radius:3px;border:1px solid var(--amber-brd);display:inline-flex;}
+
+/* FILL BAR */
+.fill-bar-wrap{display:flex;align-items:center;gap:8px;}
+.fill-bar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+.fill-bar-inner{height:100%;border-radius:3px;transition:width .4s;}
+.fill-pct{font-family:var(--mono);font-size:11px;width:40px;text-align:right;}
+
+/* LOAD PLAN */
+.plan-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px;}
+.plan-head{background:var(--navy2);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
+.plan-head h3{font-size:12px;font-weight:600;color:var(--white);letter-spacing:.5px;}
+.plan-tabs{display:flex;gap:0;}
+.plan-tab{font-size:10px;padding:4px 12px;border-radius:3px;cursor:pointer;color:#8BAFD4;background:transparent;border:1px solid transparent;transition:all .15s;font-family:var(--mono);}
+.plan-tab.on{background:rgba(255,255,255,.12);color:var(--white);border-color:rgba(255,255,255,.2);}
+.plan-body{padding:14px;}
+canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
+
+/* FREIGHT ANALYSIS */
+.freight-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.freight-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px;}
+.freight-card.loss{border-color:var(--red-brd);background:var(--red-bg);}
+.freight-card.profit{border-color:var(--green-brd);background:var(--green-bg);}
+.freight-title{font-size:10px;font-weight:600;color:var(--txt3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;}
+.frow{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.frow:last-child{border-bottom:none;font-weight:600;}
+.frow.total{margin-top:4px;padding-top:8px;border-top:2px solid var(--border);}
+
+/* CONSTRAINT LEGEND */
+.constraint-box{background:var(--amber-bg);border:1px solid var(--amber-brd);border-left:3px solid var(--amber);border-radius:var(--r2);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--amber);line-height:1.6;}
+.constraint-ok{background:var(--green-bg);border:1px solid var(--green-brd);border-left:3px solid var(--green2);color:var(--green2);}
+
+/* ── PAGE 2 ─ VEHICLE CONFIG ──────────────────────────────────── */
+.settings-layout{max-width:900px;margin:0 auto;padding:28px 24px;}
+.settings-h{font-size:20px;font-weight:600;color:var(--navy);margin-bottom:4px;}
+.settings-sub{font-size:12px;color:var(--txt3);margin-bottom:24px;}
+.veh-config-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}
+.veh-cfg-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);}
+.vcfg-head{padding:10px 12px;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+.vcfg-body{padding:10px 12px;display:flex;flex-direction:column;gap:7px;}
+.vcfg-body label{font-size:10px;font-weight:600;color:var(--txt3);letter-spacing:.4px;text-transform:uppercase;margin-bottom:2px;display:block;}
+.vcfg-body input{padding:5px 7px;font-size:12px;}
+.save-btn{display:inline-flex;align-items:center;gap:6px;background:var(--blue);color:white;border:none;padding:10px 22px;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
+.save-btn:hover{background:var(--blue3);}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+.divider{height:1px;background:var(--border);margin:10px 0;}
+.hint{font-size:10px;color:var(--txt3);margin-top:3px;line-height:1.5;}
+.mirror-info{font-size:10px;color:var(--blue);background:var(--sky);border-radius:4px;padding:5px 8px;margin-top:4px;line-height:1.5;}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <span class="tb-brand">SM@RTFAB</span>
+  <span class="tb-title">Load Optimisation & Vehicle Selection</span>
+  <nav class="tb-nav">
+    <a class="on" onclick="showPage('calc')">CALCULATOR</a>
+    <a onclick="showPage('settings')">VEHICLE SETTINGS</a>
+  </nav>
+  <div class="tb-right">
+    <span class="tb-badge idle" id="statusBadge">AWAITING INPUT</span>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<!-- PAGE 1: CALCULATOR                                            -->
+<!-- ═════════════════════════════════════════════════════════════ -->
+<div class="page active" id="page-calc">
+<div class="p1-layout">
+
+<!-- LEFT: INPUT PANEL -->
+<div class="p1-left">
+  <div class="hero-banner">
+    <h2>Load & Vehicle Calculator</h2>
+    <p>Select a material or enter dimensions manually. The calculator finds the optimal vehicle and maximises cargo loading.</p>
+  </div>
+
+  <!-- MATERIAL SELECTION MODE -->
+  <div class="scard">
+    <div class="scard-head">
+      <div class="scard-icon"><svg viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 9h18v4H3zM3 15h18v4H3z"/></svg></div>
+      <span class="scard-title">Material</span>
+    </div>
+    <div class="scard-body">
+      <div class="mode-toggle" style="margin-bottom:12px;">
+        <button class="mode-btn on" id="modeA" onclick="setMode('mat')">Select by Material No.</button>
+        <button class="mode-btn" id="modeB" onclick="setMode('manual')">Enter Manually</button>
+      </div>
+
+      <!-- MODE A: Material Lookup -->
+      <div id="modeMatPanel">
+        <div class="fg">
+          <label>Search Material</label>
+          <input type="text" id="matSearch" placeholder="Type material number or name..." oninput="filterMats(this.value)">
+        </div>
+        <div class="fg">
+          <label>Select Material</label>
+          <select id="matSelect" onchange="onMatSelect(this.value)" size="1">
+            <option value="">— choose material —</option>
+          </select>
+        </div>
+        <div id="matPreview" style="display:none;background:var(--sky);border:1px solid var(--sky2);border-radius:var(--r2);padding:10px;font-size:11px;color:var(--blue);line-height:1.8;margin-top:4px;"></div>
+      </div>
+
+      <!-- MODE B: Manual -->
+      <div id="modeManualPanel" style="display:none;">
+        <div class="g3">
+          <div class="fg"><label>Length (mm)</label><input type="number" id="mL" placeholder="6000"></div>
+          <div class="fg"><label>Width (mm)</label><input type="number" id="mW" placeholder="2400"></div>
+          <div class="fg"><label>Thickness (mm)</label><input type="number" id="mT" placeholder="12"></div>
+        </div>
+        <div class="g2">
+          <div class="fg"><label>Wire Dia MW (mm)</label><input type="number" id="mDia" placeholder="6" step="0.1"></div>
+          <div class="fg"><label>Wire Dia CW (mm)</label><input type="number" id="mDia2" placeholder="6" step="0.1"></div>
+        </div>
+        <div class="g2">
+          <div class="fg"><label>MW Spacing (mm)</label><input type="number" id="mSpaceMW" placeholder="200"></div>
+          <div class="fg"><label>CW Spacing (mm)</label><input type="number" id="mSpaceCW" placeholder="200"></div>
+        </div>
+        <div class="fg"><label>Wire Density (kg/m³)</label><input type="number" id="mDens" value="7850"></div>
+        <div id="calcWeightOut" style="display:none;background:var(--sky);border:1px solid var(--sky2);border-radius:var(--r2);padding:8px 10px;font-size:11px;color:var(--blue);margin-top:-4px;"></div>
+        <button class="btn-sec" onclick="calcManualWeight()">Calculate Weight per Sheet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUANTITY & LOAD -->
+  <div class="scard">
+    <div class="scard-head">
+      <div class="scard-icon"><svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4z"/></svg></div>
+      <span class="scard-title">Cargo Details</span>
+    </div>
+    <div class="scard-body">
+      <div class="fg">
+        <label>Number of Sheets / Pieces</label>
+        <div class="qty-row">
+          <input type="number" id="qty" value="100" min="1" oninput="updateTotalTon()">
+          <span class="qty-lbl">sheets</span>
+        </div>
+        <div id="totalTonDisplay" style="display:none;margin-top:6px;padding:7px 10px;background:var(--sky);border:1px solid var(--sky2);border-radius:var(--r2);font-size:11px;color:var(--blue);font-family:var(--mono);"></div>
+      </div>
+      <div class="fg">
+        <label>Freight Rate (₹ / MT)</label>
+        <input type="number" id="freightRate" value="2105">
+      </div>
+    </div>
+  </div>
+
+  <!-- MIRROR LOADING -->
+  <div class="scard">
+    <div class="scard-head">
+      <div class="scard-icon"><svg viewBox="0 0 24 24"><path d="M15 21h-2v-2h2v2zm-4 0H9v-2h2v2zm-4-4H5v-2h2v2zm16 0h-2v-2h2v2zM3 13H1v-2h2v2zm20 0h-2v-2h2v2zM3 9H1V7h2v2zm20 0h-2V7h2v2zM7 5H5V3h2v2zm12 0h-2V3h2v2zm-4 0h-2V3h2v2zm-4 0H9V3h2v2z"/></svg></div>
+      <span class="scard-title">Mirror / Nesting Loading</span>
+    </div>
+    <div class="scard-body">
+      <div class="toggle-row">
+        <span class="toggle-lbl">Enable mirror loading</span>
+        <label class="toggle-sw"><input type="checkbox" id="mirrorOn" checked onchange="onMirrorChange()"><span class="sl"></span></label>
+      </div>
+      <div id="mirrorOpts">
+        <div class="mirror-info">Mirror loading alternates sheets 180° so overhangs nest into adjacent gaps, reducing effective stack height and allowing more pieces per load.</div>
+        <div class="fg" style="margin-top:8px;">
+          <label>Nesting reduction (%)</label>
+          <input type="number" id="nestPct" value="20" min="0" max="50">
+          <span class="hint">Typical: 15–25% for mesh. Reduces effective thickness per layer.</span>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-lbl">Profile nesting (ridges into valleys)</span>
+          <label class="toggle-sw"><input type="checkbox" id="profNest"><span class="sl"></span></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STACK LIMITS -->
+  <div class="scard">
+    <div class="scard-head">
+      <div class="scard-icon"><svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></div>
+      <span class="scard-title">Stack Parameters</span>
+    </div>
+    <div class="scard-body">
+      <div class="g2">
+        <div class="fg"><label>Side clearance (mm)</label><input type="number" id="sideC" value="50"></div>
+        <div class="fg"><label>End clearance (mm)</label><input type="number" id="endC" value="100"></div>
+      </div>
+      <div class="g2">
+        <div class="fg"><label>Layer gap (mm)</label><input type="number" id="lgap" value="5"></div>
+        <div class="fg"><label>Max tiers</label><input type="number" id="maxT" value="12"></div>
+      </div>
+      <div class="fg"><label>Safety weight factor</label><input type="number" id="safeF" value="0.95" step="0.01"></div>
+    </div>
+  </div>
+
+  <button class="btn-primary" onclick="runCalculation()">▶  FIND BEST VEHICLE & OPTIMISE LOAD</button>
+</div>
+
+<!-- RIGHT: RESULTS -->
+<div class="p1-right" id="resultsPane">
+  <div class="empty-r" id="emptyState">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    <h3>Results will appear here</h3>
+    <p>Fill in the material details and click <b>Find Best Vehicle</b> to see vehicle comparison, load plan, and freight analysis.</p>
+  </div>
+  <div id="resultsContent" style="display:none;"></div>
+</div>
+
+</div><!-- /p1-layout -->
+</div><!-- /page-calc -->
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<!-- PAGE 2: VEHICLE SETTINGS                                      -->
+<!-- ═════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-settings">
+<div class="settings-layout">
+  <div class="settings-h">Vehicle Configuration</div>
+  <div class="settings-sub">Configure deck dimensions, payload, MG, and freight rate for each of the 5 vehicle slots. Changes apply immediately to calculator.</div>
+  <div class="veh-config-grid" id="vehConfigGrid"></div>
+  <button class="save-btn" onclick="saveSettings()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4zm-5 16a3 3 0 110-6 3 3 0 010 6zm3-10H5V5h10v4z"/></svg>
+    Save Vehicle Settings
+  </button>
+  <div id="saveMsg" style="display:none;margin-top:10px;font-size:12px;color:var(--green2);">✓ Settings saved.</div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// MATERIAL DATABASE (214 records from Excel)
+// ═══════════════════════════════════════════════════════════════
+const MATS = [{"mat_no":3928069,"mat_desc":"MRN_6.0X6.0_200X200_200X200_600X300U0","length_mm":6000,"width_mm":3000,"weight_kg":39.95,"thick_m":0.012},{"mat_no":4069131,"mat_desc":"MPN_6.0X6.0_200X200_200X200_600X300U0","length_mm":6000,"width_mm":3000,"weight_kg":39.95,"thick_m":0.012},{"mat_no":4185403,"mat_desc":"MRN_10.0X10.0_200X200_200X200_600X300U0","length_mm":6000,"width_mm":3000,"weight_kg":110.98,"thick_m":0.020},{"mat_no":3944993,"mat_desc":"MRN_8.0X8.0_200X200_500X500_610X250U0","length_mm":6100,"width_mm":2500,"weight_kg":55.08,"thick_m":0.016},{"mat_no":3872732,"mat_desc":"MRN_7.0X7.0_200X200_100X200_1190X240U0","length_mm":11900,"width_mm":2400,"weight_kg":86.64,"thick_m":0.014},{"mat_no":3872825,"mat_desc":"MRN_8.0X8.0_150X150_150X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":75.76,"thick_m":0.016},{"mat_no":3872826,"mat_desc":"MRN_8.0X8.0_200X200_200X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":56.82,"thick_m":0.016},{"mat_no":3872827,"mat_desc":"MRN_7.0X7.0_150X150_150X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":58.00,"thick_m":0.014},{"mat_no":3872830,"mat_desc":"ARN_7.0X7.0_200X200_200X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":43.50,"thick_m":0.014},{"mat_no":3872841,"mat_desc":"MRN_6.0X6.0_200X200_200X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":31.96,"thick_m":0.012},{"mat_no":3872842,"mat_desc":"ARN_6.0X6.0_150X150_150X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":42.62,"thick_m":0.012},{"mat_no":3872843,"mat_desc":"MPN_6.0X6.0_200X200_200X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":31.96,"thick_m":0.012},{"mat_no":3880151,"mat_desc":"MRN_6.0X6.0_150X150_150X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":42.62,"thick_m":0.012},{"mat_no":3880260,"mat_desc":"TRN_8.0X8.0_100X100_200X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":110.33,"thick_m":0.016},{"mat_no":3892914,"mat_desc":"MRN_10.0X10.0_150X150_200X150_440X240U0","length_mm":4400,"width_mm":2400,"weight_kg":86.32,"thick_m":0.020},{"mat_no":3892915,"mat_desc":"MRN_10.0X10.0_150X150_100X150_340X240U0","length_mm":3400,"width_mm":2400,"weight_kg":67.57,"thick_m":0.020},{"mat_no":3902224,"mat_desc":"MRN_7.0X7.0_200X200_100X200_1210X240U0","length_mm":12100,"width_mm":2400,"weight_kg":88.09,"thick_m":0.014},{"mat_no":3907821,"mat_desc":"MPN_5.0X5.0_150X150_150X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":29.59,"thick_m":0.010},{"mat_no":3911654,"mat_desc":"MRN_7.0X7.0_200X200_200X200_840X240U0","length_mm":8400,"width_mm":2400,"weight_kg":60.90,"thick_m":0.014},{"mat_no":3927363,"mat_desc":"ARN_7.0X7.0_165X165_60X90_765X240U0","length_mm":7650,"width_mm":2400,"weight_kg":68.74,"thick_m":0.014},{"mat_no":3927365,"mat_desc":"ARN_7.0X7.0_165X165_150X90_312X240U0","length_mm":3120,"width_mm":2400,"weight_kg":27.91,"thick_m":0.014},{"mat_no":3932634,"mat_desc":"TRN_8.0X8.0_300X300_240X300_384X240U0","length_mm":3840,"width_mm":2400,"weight_kg":24.43,"thick_m":0.016},{"mat_no":3934285,"mat_desc":"MRN_10.0X10.0_150X150_200X300_440X240U0","length_mm":4400,"width_mm":2400,"weight_kg":83.60,"thick_m":0.020},{"mat_no":3934286,"mat_desc":"MRN_6.0X6.0_150X150_300X300_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":40.75,"thick_m":0.012},{"mat_no":3934288,"mat_desc":"MRN_10.0X10.0_150X150_250X300_340X240U0","length_mm":3400,"width_mm":2400,"weight_kg":64.00,"thick_m":0.020},{"mat_no":3952618,"mat_desc":"ARN_6.0X6.0_200X200_30X200_1123X240U0","length_mm":11230,"width_mm":2400,"weight_kg":60.27,"thick_m":0.012},{"mat_no":3983463,"mat_desc":"MRN_7.0X7.0_200X200_400X200_1200X240U0","length_mm":12000,"width_mm":2400,"weight_kg":86.28,"thick_m":0.014},{"mat_no":3993701,"mat_desc":"ARN_10.0X10.0_200X200_200X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":88.78,"thick_m":0.020},{"mat_no":3994045,"mat_desc":"MPN_6.0X6.0_150X150_450X450_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":38.89,"thick_m":0.012},{"mat_no":3998316,"mat_desc":"MPN_7.0X7.0_200X200_400X400_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":40.97,"thick_m":0.014},{"mat_no":3999724,"mat_desc":"ARN_9.0X9.0_150X150_50X150_485X240U0","length_mm":4850,"width_mm":2400,"weight_kg":78.31,"thick_m":0.018},{"mat_no":3999725,"mat_desc":"ARN_9.0X9.0_150X150_600X150_1200X240U0","length_mm":12000,"width_mm":2400,"weight_kg":188.17,"thick_m":0.018},{"mat_no":4017068,"mat_desc":"ARN_10.0X10.0_150X150_300X300_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":113.20,"thick_m":0.020},{"mat_no":4026771,"mat_desc":"MRN_8.0X8.0_150X150_300X300_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":72.45,"thick_m":0.016},{"mat_no":4031175,"mat_desc":"ARN_6.0X6.0_200X200_400X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":31.43,"thick_m":0.012},{"mat_no":4039391,"mat_desc":"MRN_10.0X10.0_150X150_300X300_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":113.20,"thick_m":0.020},{"mat_no":4044344,"mat_desc":"MPN_4.00X4.00_200X200_200X200_3000X240U0","length_mm":30000,"width_mm":2400,"weight_kg":71.03,"thick_m":0.008},{"mat_no":4049872,"mat_desc":"ARN_6.0X6.0_200X200_200X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":31.96,"thick_m":0.012},{"mat_no":4049906,"mat_desc":"ARN_6.0X6.0_90X90_150X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":69.78,"thick_m":0.012},{"mat_no":4062523,"mat_desc":"MPN_4.00X4.00_100X100_100X100_3000X240U0","length_mm":30000,"width_mm":2400,"weight_kg":142.05,"thick_m":0.008},{"mat_no":4086167,"mat_desc":"MPN_4.00X4.00_100X100_100X100_1500X240U0","length_mm":15000,"width_mm":2400,"weight_kg":71.03,"thick_m":0.008},{"mat_no":4108991,"mat_desc":"MRN_7.0X7.0_150X150_450X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":56.55,"thick_m":0.014},{"mat_no":4108992,"mat_desc":"MRN_7.0X7.0_150X150_100X150_505X240U0","length_mm":5050,"width_mm":2400,"weight_kg":49.06,"thick_m":0.014},{"mat_no":4108994,"mat_desc":"MRN_7.0X7.0_150X150_200X150_470X240U0","length_mm":4700,"width_mm":2400,"weight_kg":45.19,"thick_m":0.014},{"mat_no":4124695,"mat_desc":"MPN_7.0X7.0_250X250_250X100_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":35.89,"thick_m":0.014},{"mat_no":4150495,"mat_desc":"MRN_8.0X8.0_200X200_650X600_965X240U0","length_mm":9650,"width_mm":2400,"weight_kg":81.64,"thick_m":0.016},{"mat_no":4150496,"mat_desc":"MRN_8.0X8.0_200X200_800X600_740X240U0","length_mm":7400,"width_mm":2400,"weight_kg":61.40,"thick_m":0.016},{"mat_no":4150497,"mat_desc":"MRN_8.0X8.0_200X200_750X600_495X240U0","length_mm":4950,"width_mm":2400,"weight_kg":40.37,"thick_m":0.016},{"mat_no":4150498,"mat_desc":"MRN_8.0X8.0_200X200_600X600_780X240U0","length_mm":7800,"width_mm":2400,"weight_kg":65.82,"thick_m":0.016},{"mat_no":4150499,"mat_desc":"MRN_8.0X8.0_200X200_600X600_420X240U0","length_mm":4200,"width_mm":2400,"weight_kg":34.57,"thick_m":0.016},{"mat_no":4151057,"mat_desc":"ARN_8.0X8.0_200X200_650X600_965X240U0","length_mm":9650,"width_mm":2400,"weight_kg":81.64,"thick_m":0.016},{"mat_no":4151058,"mat_desc":"ARN_8.0X8.0_200X200_800X600_740X240U0","length_mm":7400,"width_mm":2400,"weight_kg":61.40,"thick_m":0.016},{"mat_no":4151059,"mat_desc":"ARN_8.0X8.0_200X200_750X600_495X240U0","length_mm":4950,"width_mm":2400,"weight_kg":40.37,"thick_m":0.016},{"mat_no":4151060,"mat_desc":"ARN_8.0X8.0_200X200_600X600_780X240U0","length_mm":7800,"width_mm":2400,"weight_kg":65.82,"thick_m":0.016},{"mat_no":4151131,"mat_desc":"ARN_8.0X8.0_200X200_600X600_420X240U0","length_mm":4200,"width_mm":2400,"weight_kg":34.57,"thick_m":0.016},{"mat_no":4152899,"mat_desc":"MRN_6.0X6.0_200X200_350X200_435X240U0","length_mm":4350,"width_mm":2400,"weight_kg":22.77,"thick_m":0.012},{"mat_no":4153043,"mat_desc":"MRN_6.0X6.0_200X200_150X200_355X240U0","length_mm":3550,"width_mm":2400,"weight_kg":19.04,"thick_m":0.012},{"mat_no":4153166,"mat_desc":"MRN_6.0X6.0_200X200_400X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":31.43,"thick_m":0.012},{"mat_no":4156380,"mat_desc":"MRN_8.0X8.0_200X200_650X800_965X240U0","length_mm":9650,"width_mm":2400,"weight_kg":77.83,"thick_m":0.016},{"mat_no":4156811,"mat_desc":"MRN_8.0X8.0_200X200_750X600_855X240U0","length_mm":8550,"width_mm":2400,"weight_kg":71.62,"thick_m":0.016},{"mat_no":4156812,"mat_desc":"MRN_8.0X8.0_200X200_700X600_1070X240U0","length_mm":10700,"width_mm":2400,"weight_kg":90.52,"thick_m":0.016},{"mat_no":4156813,"mat_desc":"MRN_8.0X8.0_200X200_750X600_675X240U0","length_mm":6750,"width_mm":2400,"weight_kg":55.99,"thick_m":0.016},{"mat_no":4161178,"mat_desc":"MRN_7.0X7.0_150X150_300X300_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":55.47,"thick_m":0.014},{"mat_no":4164841,"mat_desc":"ARN_9.0X9.0_150X150_600X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":92.29,"thick_m":0.018},{"mat_no":4164843,"mat_desc":"ARN_9.0X9.0_150X150_150X150_465X240U0","length_mm":4650,"width_mm":2400,"weight_kg":74.31,"thick_m":0.018},{"mat_no":4171099,"mat_desc":"MRN_7.0X7.0_200X200_400X200_1100X240U0","length_mm":11000,"width_mm":2400,"weight_kg":79.03,"thick_m":0.014},{"mat_no":4171100,"mat_desc":"MRN_7.0X7.0_200X200_600X600_1200X240U0","length_mm":12000,"width_mm":2400,"weight_kg":78.31,"thick_m":0.014},{"mat_no":4171186,"mat_desc":"MRN_7.0X7.0_200X200_400X600_800X240U0","length_mm":8000,"width_mm":2400,"weight_kg":52.45,"thick_m":0.014},{"mat_no":4171187,"mat_desc":"MRN_7.0X7.0_200X200_400X200_800X240U0","length_mm":8000,"width_mm":2400,"weight_kg":57.28,"thick_m":0.014},{"mat_no":4171188,"mat_desc":"MRN_7.0X7.0_200X200_400X600_1200X240U0","length_mm":12000,"width_mm":2400,"weight_kg":79.03,"thick_m":0.014},{"mat_no":4171189,"mat_desc":"MRN_7.0X7.0_200X200_300X600_890X240U0","length_mm":8900,"width_mm":2400,"weight_kg":58.79,"thick_m":0.014},{"mat_no":4171190,"mat_desc":"MRN_7.0X7.0_200X200_300X200_890X240U0","length_mm":8900,"width_mm":2400,"weight_kg":64.17,"thick_m":0.014},{"mat_no":4171441,"mat_desc":"MRN_7.0X7.0_200X200_600X200_1200X240U0","length_mm":12000,"width_mm":2400,"weight_kg":85.56,"thick_m":0.014},{"mat_no":4171442,"mat_desc":"MRN_7.0X7.0_200X200_400X600_1100X240U0","length_mm":11000,"width_mm":2400,"weight_kg":72.38,"thick_m":0.014},{"mat_no":4171443,"mat_desc":"MRN_7.0X7.0_200X200_400X600_400X240U0","length_mm":4000,"width_mm":2400,"weight_kg":25.86,"thick_m":0.014},{"mat_no":4171444,"mat_desc":"MRN_7.0X7.0_200X200_400X200_400X240U0","length_mm":4000,"width_mm":2400,"weight_kg":28.28,"thick_m":0.014},{"mat_no":4171561,"mat_desc":"MRN_7.0X7.0_200X200_450X600_325X240U0","length_mm":3250,"width_mm":2400,"weight_kg":20.69,"thick_m":0.014},{"mat_no":4184755,"mat_desc":"ARN_8.0X8.0_150X150_550X150_595X240U0","length_mm":5950,"width_mm":2400,"weight_kg":72.60,"thick_m":0.016},{"mat_no":4184756,"mat_desc":"ARN_8.0X8.0_150X150_200X150_290X240U0","length_mm":2900,"width_mm":2400,"weight_kg":36.30,"thick_m":0.016},{"mat_no":4184759,"mat_desc":"ARN_8.0X8.0_150X150_200X150_560X240U0","length_mm":5600,"width_mm":2400,"weight_kg":70.39,"thick_m":0.016},{"mat_no":4184971,"mat_desc":"ARN_8.0X8.0_150X150_100X150_580X240U0","length_mm":5800,"width_mm":2400,"weight_kg":73.55,"thick_m":0.016},{"mat_no":4186232,"mat_desc":"ARN_7.0X7.0_190X190_490X120_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":45.32,"thick_m":0.014},{"mat_no":4187412,"mat_desc":"ARN_7.0X7.0_150X150_450X150_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":56.55,"thick_m":0.014},{"mat_no":4187799,"mat_desc":"MPN_6.0X6.0_200X200_200X400_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":30.63,"thick_m":0.012},{"mat_no":4190125,"mat_desc":"MPN_6.0X6.0_200X200_400X400_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":30.10,"thick_m":0.012},{"mat_no":4191038,"mat_desc":"ARN_7.0X7.0_150X150_200X150_290X240U0","length_mm":2900,"width_mm":2400,"weight_kg":27.79,"thick_m":0.014},{"mat_no":4191039,"mat_desc":"ARN_7.0X7.0_150X150_400X150_415X240U0","length_mm":4150,"width_mm":2400,"weight_kg":38.91,"thick_m":0.014},{"mat_no":4191400,"mat_desc":"ARN_7.0X7.0_200X200_400X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":42.78,"thick_m":0.014},{"mat_no":4202725,"mat_desc":"TRN_8.0X8.0_200X200_600X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":54.93,"thick_m":0.016},{"mat_no":4202727,"mat_desc":"TRN_8.0X8.0_200X200_150X200_555X240U0","length_mm":5550,"width_mm":2400,"weight_kg":52.80,"thick_m":0.016},{"mat_no":4206146,"mat_desc":"ARN_8.0X8.0_200X200_600X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":54.93,"thick_m":0.016},{"mat_no":4206147,"mat_desc":"ARN_8.0X8.0_200X200_150X200_555X240U0","length_mm":5550,"width_mm":2400,"weight_kg":52.80,"thick_m":0.016},{"mat_no":4206768,"mat_desc":"MRN_6.0X6.0_200X200_400X400_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":30.10,"thick_m":0.012},{"mat_no":4213519,"mat_desc":"MRN_8.0X8.0_150X150_550X150_595X240U0","length_mm":5950,"width_mm":2400,"weight_kg":72.60,"thick_m":0.016},{"mat_no":4213743,"mat_desc":"MRN_8.0X8.0_150X150_200X150_560X240U0","length_mm":5600,"width_mm":2400,"weight_kg":70.39,"thick_m":0.016},{"mat_no":4213749,"mat_desc":"MRN_8.0X8.0_150X150_100X150_445X240U0","length_mm":4450,"width_mm":2400,"weight_kg":56.50,"thick_m":0.016},{"mat_no":4213750,"mat_desc":"MRN_8.0X8.0_150X150_200X150_410X240U0","length_mm":4100,"width_mm":2400,"weight_kg":51.45,"thick_m":0.016},{"mat_no":4216257,"mat_desc":"MRN_8.0X8.0_200X200_600X200_600X240U0","length_mm":6000,"width_mm":2400,"weight_kg":54.93,"thick_m":0.016},{"mat_no":4219007,"mat_desc":"ARN_9.0X9.0_200X200_650X200_585X240U0","length_mm":5850,"width_mm":2400,"weight_kg":67.42,"thick_m":0.018},{"mat_no":4219202,"mat_desc":"ARN_7.0X7.0_200X200_1000X200_380X240U0","length_mm":3800,"width_mm":2400,"weight_kg":24.65,"thick_m":0.014},{"mat_no":3892527,"mat_desc":"MRN_6.0X6.0_150X150_0X100_345X235U0","length_mm":3450,"width_mm":2350,"weight_kg":24.77,"thick_m":0.012},{"mat_no":3926737,"mat_desc":"MRN_7.0X7.0_200X200_400X200_1200X220U0","length_mm":12000,"width_mm":2200,"weight_kg":79.09,"thick_m":0.014},{"mat_no":3988824,"mat_desc":"MRN_7.0X7.0_200X200_200X200_600X220U0","length_mm":6000,"width_mm":2200,"weight_kg":39.88,"thick_m":0.014},{"mat_no":4164499,"mat_desc":"MPN_6.0X6.0_100X100_100X100_600X220U0","length_mm":6000,"width_mm":2200,"weight_kg":58.60,"thick_m":0.012},{"mat_no":4214114,"mat_desc":"ARN_7.0X7.0_200X200_200X200_600X220U0","length_mm":6000,"width_mm":2200,"weight_kg":39.88,"thick_m":0.014},{"mat_no":3872733,"mat_desc":"MRN_7.0X7.0_200X200_100X100_1190X210U0","length_mm":11900,"width_mm":2100,"weight_kg":77.61,"thick_m":0.014},{"mat_no":3932964,"mat_desc":"MRN_9.0X9.0_150X150_150X150_1200X210U0","length_mm":12000,"width_mm":2100,"weight_kg":167.80,"thick_m":0.018},{"mat_no":3932965,"mat_desc":"MRN_9.0X9.0_150X150_600X150_1200X210U0","length_mm":12000,"width_mm":2100,"weight_kg":164.65,"thick_m":0.018},{"mat_no":3932966,"mat_desc":"MRN_9.0X9.0_150X150_600X150_660X210U0","length_mm":6600,"width_mm":2100,"weight_kg":89.14,"thick_m":0.018},{"mat_no":3959794,"mat_desc":"MRN_6.0X6.0_300X300_600X300_600X210U0","length_mm":6000,"width_mm":2100,"weight_kg":18.18,"thick_m":0.012},{"mat_no":4094303,"mat_desc":"ARN_7.0X7.0_200X200_200X100_1200X210U0","length_mm":12000,"width_mm":2100,"weight_kg":77.94,"thick_m":0.014},{"mat_no":4223108,"mat_desc":"MPN_3.13X3.13_150X150_150X150_3000X210U0","length_mm":30000,"width_mm":2100,"weight_kg":50.74,"thick_m":0.00626},{"mat_no":4097366,"mat_desc":"MPN_5.0X5.0_200X200_200X250_600X205U0","length_mm":6000,"width_mm":2050,"weight_kg":18.73,"thick_m":0.010},{"mat_no":4108993,"mat_desc":"MRN_7.0X7.0_150X150_450X100_600X205U0","length_mm":6000,"width_mm":2050,"weight_kg":48.91,"thick_m":0.014},{"mat_no":4109042,"mat_desc":"MRN_7.0X7.0_150X150_100X100_205X205U0","length_mm":2050,"width_mm":2050,"weight_kg":17.34,"thick_m":0.014},{"mat_no":4109043,"mat_desc":"MRN_7.0X7.0_150X150_100X100_370X205U0","length_mm":3700,"width_mm":2050,"weight_kg":31.13,"thick_m":0.014},{"mat_no":3859978,"mat_desc":"MPS6.0X6.0_200X200_400X400_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":24.86,"thick_m":0.012},{"mat_no":3880222,"mat_desc":"MPN_6.0X6.0_200X200_400X400_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":24.86,"thick_m":0.012},{"mat_no":3880223,"mat_desc":"MPN_6.0X6.0_150X150_150X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":35.07,"thick_m":0.012},{"mat_no":3889147,"mat_desc":"ARN_7.0X7.0_200X200_200X200_400X200U0","length_mm":4000,"width_mm":2000,"weight_kg":24.17,"thick_m":0.014},{"mat_no":3892552,"mat_desc":"MRN_6.0X6.0_100X100_100X100_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":53.27,"thick_m":0.012},{"mat_no":3892916,"mat_desc":"MRN_12.0X12.0_150X150_150X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":140.27,"thick_m":0.024},{"mat_no":3911653,"mat_desc":"MPN_4.90X4.90_75X25_50X125_340X200U0","length_mm":3400,"width_mm":2000,"weight_kg":53.05,"thick_m":0.009800000000000001},{"mat_no":3913310,"mat_desc":"ARN_6.0X6.0_150X150_300X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":34.62,"thick_m":0.012},{"mat_no":3934287,"mat_desc":"MRN_12.0X12.0_150X150_300X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":138.50,"thick_m":0.024},{"mat_no":3957747,"mat_desc":"ARN_11.0X11.0_150X150_150X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":117.87,"thick_m":0.022},{"mat_no":4060077,"mat_desc":"MPN_6.0X6.0_150X150_300X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":34.62,"thick_m":0.012},{"mat_no":4097905,"mat_desc":"MPN_5.0X5.0_200X200_200X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":18.50,"thick_m":0.010},{"mat_no":4116667,"mat_desc":"TRN_6.0X6.0_150X150_300X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":34.62,"thick_m":0.012},{"mat_no":4124463,"mat_desc":"MRN_6.0X6.0_200X200_200X200_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":26.63,"thick_m":0.012},{"mat_no":4170213,"mat_desc":"ARN_6.0X6.0_150X150_150X350_255X200U0","length_mm":2550,"width_mm":2000,"weight_kg":14.34,"thick_m":0.012},{"mat_no":4170215,"mat_desc":"ARN_6.0X6.0_150X150_450X350_525X200U0","length_mm":5250,"width_mm":2000,"weight_kg":28.63,"thick_m":0.012},{"mat_no":4186370,"mat_desc":"ARN_6.0X6.0_200X200_200X0_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":27.97,"thick_m":0.012},{"mat_no":4211075,"mat_desc":"MRN_7.0X7.0_200X200_400X400_600X200U0","length_mm":6000,"width_mm":2000,"weight_kg":33.84,"thick_m":0.014},{"mat_no":4216442,"mat_desc":"MRN_7.0X7.0_200X200_550X200_595X200U0","length_mm":5950,"width_mm":2000,"weight_kg":34.89,"thick_m":0.014},{"mat_no":4216443,"mat_desc":"MRN_7.0X7.0_200X200_200X200_340X200U0","length_mm":3400,"width_mm":2000,"weight_kg":20.54,"thick_m":0.014},{"mat_no":4216444,"mat_desc":"MRN_7.0X7.0_200X200_200X200_400X200U0","length_mm":4000,"width_mm":2000,"weight_kg":24.17,"thick_m":0.014},{"mat_no":4216445,"mat_desc":"MRN_7.0X7.0_200X200_150X200_595X200U0","length_mm":5950,"width_mm":2000,"weight_kg":36.10,"thick_m":0.014},{"mat_no":4216446,"mat_desc":"MRN_7.0X7.0_200X200_200X200_480X200U0","length_mm":4800,"width_mm":2000,"weight_kg":29.00,"thick_m":0.014},{"mat_no":4227450,"mat_desc":"ARN_7.0X7.0_200X200_550X200_595X200U0","length_mm":5950,"width_mm":2000,"weight_kg":34.89,"thick_m":0.014},{"mat_no":4227461,"mat_desc":"ARN_7.0X7.0_200X200_200X200_440X200U0","length_mm":4400,"width_mm":2000,"weight_kg":26.59,"thick_m":0.014},{"mat_no":4031176,"mat_desc":"ARN_6.0X6.0_200X200_400X150_600X195U0","length_mm":6000,"width_mm":1950,"weight_kg":25.87,"thick_m":0.012},{"mat_no":3880256,"mat_desc":"MPN_6.0X6.0_100X100_30X30_293X193U0","length_mm":2930,"width_mm":1930,"weight_kg":25.86,"thick_m":0.012},{"mat_no":3880227,"mat_desc":"MPN_3.50X3.50_75X75_75X70_1500X172U0","length_mm":15000,"width_mm":1720,"weight_kg":52.04,"thick_m":0.007},{"mat_no":4156814,"mat_desc":"MRN_8.0X8.0_200X200_750X700_675X170U0","length_mm":6750,"width_mm":1700,"weight_kg":36.78,"thick_m":0.016},{"mat_no":4184757,"mat_desc":"ARN_8.0X8.0_150X150_550X50_595X170U0","length_mm":5950,"width_mm":1700,"weight_kg":53.00,"thick_m":0.016},{"mat_no":4213741,"mat_desc":"MRN_8.0X8.0_150X150_550X50_595X170U0","length_mm":5950,"width_mm":1700,"weight_kg":53.00,"thick_m":0.016},{"mat_no":4213744,"mat_desc":"MRN_8.0X8.0_150X150_200X50_560X170U0","length_mm":5600,"width_mm":1700,"weight_kg":51.34,"thick_m":0.016},{"mat_no":3911658,"mat_desc":"MRN_7.0X7.0_200X200_500X50_1090X165U0","length_mm":10900,"width_mm":1650,"weight_kg":56.06,"thick_m":0.014},{"mat_no":4156815,"mat_desc":"MRN_8.0X8.0_200X200_750X650_855X165U0","length_mm":8550,"width_mm":1650,"weight_kg":46.28,"thick_m":0.016},{"mat_no":3999723,"mat_desc":"ARN_9.0X9.0_150X150_50X100_485X160U0","length_mm":4850,"width_mm":1600,"weight_kg":53.01,"thick_m":0.018},{"mat_no":3999728,"mat_desc":"ARN_9.0X9.0_150X150_600X100_1200X160U0","length_mm":12000,"width_mm":1600,"weight_kg":127.45,"thick_m":0.018},{"mat_no":4177668,"mat_desc":"MPN_3.00X3.00_75X75_150X100_1500X160U0","length_mm":15000,"width_mm":1600,"weight_kg":35.15,"thick_m":0.006},{"mat_no":4000378,"mat_desc":"MPN_3.50X3.50_75X75_75X70_1500X157U0","length_mm":15000,"width_mm":1570,"weight_kg":47.51,"thick_m":0.007},{"mat_no":3862354,"mat_desc":"MPS3.15X3.15_100X100_100X24_2500X1524U0","length_mm":25000,"width_mm":15240,"weight_kg":467.32,"thick_m":0.0063},{"mat_no":3862946,"mat_desc":"MPS4.1X4.1_50X50_50X50_295X150U0","length_mm":2950,"width_mm":1500,"weight_kg":18.34,"thick_m":0.00820},{"mat_no":3870793,"mat_desc":"MPN_2.50X2.50_75X75_150X150_3000X150U0","length_mm":30000,"width_mm":1500,"weight_kg":45.03,"thick_m":0.005},{"mat_no":3886703,"mat_desc":"MPN_4.00X4.00_150X150_100X150_3000X150U0","length_mm":30000,"width_mm":1500,"weight_kg":59.24,"thick_m":0.008},{"mat_no":3893210,"mat_desc":"MPN_4.00X4.00_150X150_100X150_1000X150U0","length_mm":10000,"width_mm":1500,"weight_kg":19.78,"thick_m":0.008},{"mat_no":4049907,"mat_desc":"MRN_7.0X7.0_150X150_150X150_450X150U0","length_mm":4500,"width_mm":1500,"weight_kg":27.19,"thick_m":0.014},{"mat_no":4153041,"mat_desc":"MRN_6.0X6.0_200X200_400X100_600X150U0","length_mm":6000,"width_mm":1500,"weight_kg":20.31,"thick_m":0.012},{"mat_no":4153042,"mat_desc":"MRN_6.0X6.0_200X200_150X100_355X150U0","length_mm":3550,"width_mm":1500,"weight_kg":12.30,"thick_m":0.012},{"mat_no":4191040,"mat_desc":"ARN_7.0X7.0_150X150_450X150_600X150U0","length_mm":6000,"width_mm":1500,"weight_kg":35.35,"thick_m":0.014},{"mat_no":4176598,"mat_desc":"MRN_8.0X8.0_200X200_650X450_525X145U0","length_mm":5250,"width_mm":1450,"weight_kg":26.16,"thick_m":0.016},{"mat_no":4108919,"mat_desc":"MRN_7.0X7.0_150X150_100X150_505X135U0","length_mm":5050,"width_mm":1350,"weight_kg":27.60,"thick_m":0.014},{"mat_no":4109044,"mat_desc":"MRN_7.0X7.0_150X150_450X150_600X135U0","length_mm":6000,"width_mm":1350,"weight_kg":31.81,"thick_m":0.014},{"mat_no":4156816,"mat_desc":"MRN_8.0X8.0_200X200_650X550_965X135U0","length_mm":9650,"width_mm":1350,"weight_kg":43.54,"thick_m":0.016},{"mat_no":4164842,"mat_desc":"ARN_9.0X9.0_150X150_600X150_600X135U0","length_mm":6000,"width_mm":1350,"weight_kg":51.91,"thick_m":0.018},{"mat_no":4164844,"mat_desc":"ARN_9.0X9.0_150X150_150X150_465X135U0","length_mm":4650,"width_mm":1350,"weight_kg":41.80,"thick_m":0.018},{"mat_no":4186234,"mat_desc":"ARN_7.0X7.0_190X190_490X400_600X135U0","length_mm":6000,"width_mm":1350,"weight_kg":23.11,"thick_m":0.014},{"mat_no":4227463,"mat_desc":"ARN_7.0X7.0_200X200_550X150_595X135U0","length_mm":5950,"width_mm":1350,"weight_kg":24.00,"thick_m":0.014},{"mat_no":3999726,"mat_desc":"ARN_9.0X9.0_150X150_600X100_1200X130U0","length_mm":12000,"width_mm":1300,"weight_kg":103.92,"thick_m":0.018},{"mat_no":3999727,"mat_desc":"ARN_9.0X9.0_150X150_50X100_485X130U0","length_mm":4850,"width_mm":1300,"weight_kg":43.22,"thick_m":0.018},{"mat_no":4184973,"mat_desc":"ARN_8.0X8.0_150X150_550X100_595X130U0","length_mm":5950,"width_mm":1300,"weight_kg":40.11,"thick_m":0.016},{"mat_no":4184974,"mat_desc":"ARN_8.0X8.0_150X150_200X100_560X130U0","length_mm":5600,"width_mm":1300,"weight_kg":38.87,"thick_m":0.016},{"mat_no":4213747,"mat_desc":"MRN_8.0X8.0_150X150_550X100_595X130U0","length_mm":5950,"width_mm":1300,"weight_kg":40.11,"thick_m":0.016},{"mat_no":4213748,"mat_desc":"MRN_8.0X8.0_150X150_200X100_560X130U0","length_mm":5600,"width_mm":1300,"weight_kg":38.87,"thick_m":0.016},{"mat_no":4216447,"mat_desc":"MRN_7.0X7.0_200X200_550X100_595X130U0","length_mm":5950,"width_mm":1300,"weight_kg":23.58,"thick_m":0.014},{"mat_no":4028796,"mat_desc":"MPN_4.00X4.00_75X75_150X150_3000X120U0","length_mm":30000,"width_mm":1200,"weight_kg":91.62,"thick_m":0.008},{"mat_no":4220019,"mat_desc":"MPN_4.00X4.00_75X75_75X75_3000X120U0","length_mm":30000,"width_mm":1200,"weight_kg":94.70,"thick_m":0.008},{"mat_no":3927364,"mat_desc":"ARN_7.0X7.0_165X165_60X60_765X105U0","length_mm":7650,"width_mm":1050,"weight_kg":31.09,"thick_m":0.014},{"mat_no":3927366,"mat_desc":"ARN_7.0X7.0_165X165_150X60_312X105U0","length_mm":3120,"width_mm":1050,"weight_kg":12.62,"thick_m":0.014},{"mat_no":4108920,"mat_desc":"MRN_7.0X7.0_150X150_450X150_600X105U0","length_mm":6000,"width_mm":1050,"weight_kg":24.74,"thick_m":0.014},{"mat_no":4109041,"mat_desc":"MRN_7.0X7.0_150X150_100X150_505X105U0","length_mm":5050,"width_mm":1050,"weight_kg":21.46,"thick_m":0.014},{"mat_no":4109045,"mat_desc":"MRN_7.0X7.0_150X150_200X150_470X105U0","length_mm":4700,"width_mm":1050,"weight_kg":19.77,"thick_m":0.014},{"mat_no":4186233,"mat_desc":"ARN_7.0X7.0_190X190_490X470_600X85U0","length_mm":6000,"width_mm":850,"weight_kg":13.14,"thick_m":0.014},{"mat_no":3880225,"mat_desc":"MPN_3.50X3.50_75X75_75X15_1500X69U0","length_mm":15000,"width_mm":690,"weight_kg":21.75,"thick_m":0.007},{"mat_no":3866657,"mat_desc":"MRS8.0X6.0_135X144_10X10_145X28U0","length_mm":1450,"width_mm":280,"weight_kg":2.40,"thick_m":0.014}];
+
+// ═══════════════════════════════════════════════════════════════
+// DEFAULT VEHICLES
+// ═══════════════════════════════════════════════════════════════
+const VEH_DEFAULTS = [
+  {name:'Truck',   color:'#1565C0',L:6.0,  W:2.2, H:2.0, mg:10, payload:7,   rate:1450},
+  {name:'Trailer', color:'#2E7D32',L:12.1, W:2.4, H:2.5, mg:23, payload:25,  rate:2330},
+  {name:'Eicher 3019',color:'#6A1B9A',L:6.1,W:2.3,H:1.8,mg:7, payload:7.5, rate:2100},
+  {name:'Mini Truck',  color:'#E65100',L:5.0,W:2.0,H:1.5,mg:5, payload:4,   rate:1200},
+  {name:'Heavy Trailer',color:'#00695C',L:14.0,W:2.5,H:3.0,mg:30,payload:32, rate:2500},
+];
+let vehs = JSON.parse(localStorage.getItem('sf_vehs')||'null') || JSON.parse(JSON.stringify(VEH_DEFAULTS));
+let currentMat = null;
+let CR = null;
+let activeTab = 'top';
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', function(){
+  populateMatSelect('');
+  renderVehConfig();
+});
+
+function showPage(p){
+  document.querySelectorAll('.page').forEach(function(el){el.classList.remove('active');});
+  document.querySelectorAll('.tb-nav a').forEach(function(el){el.classList.remove('on');});
+  document.getElementById('page-'+p).classList.add('active');
+  event.target.classList.add('on');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MATERIAL SELECT
+// ═══════════════════════════════════════════════════════════════
+function populateMatSelect(filter){
+  var sel = document.getElementById('matSelect');
+  var f = filter.toLowerCase();
+  sel.innerHTML = '<option value="">— choose material —</option>';
+  MATS.forEach(function(m,i){
+    var txt = m.mat_no+' — '+m.mat_desc;
+    if(!f || txt.toLowerCase().indexOf(f)>=0){
+      var o = document.createElement('option');
+      o.value = i;
+      o.textContent = txt;
+      sel.appendChild(o);
+    }
+  });
+}
+
+function filterMats(v){ populateMatSelect(v); }
+
+function onMatSelect(idx){
+  if(!idx){ currentMat=null; document.getElementById('matPreview').style.display='none'; return; }
+  var m = MATS[parseInt(idx)];
+  currentMat = m;
+  var prev = document.getElementById('matPreview');
+  prev.style.display = 'block';
+  prev.innerHTML =
+    '<b>'+m.mat_no+' — '+m.mat_desc+'</b><br>'+
+    'Length: <b>'+m.length_mm+' mm</b> &nbsp;|&nbsp; Width: <b>'+m.width_mm+' mm</b><br>'+
+    'Weight/sheet: <b>'+m.weight_kg.toFixed(3)+' kg</b> &nbsp;|&nbsp; Thickness: <b>'+(m.thick_m*1000).toFixed(2)+' mm</b>';
+  updateTotalTon();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODE TOGGLE
+// ═══════════════════════════════════════════════════════════════
+function setMode(m){
+  document.getElementById('modeA').classList.toggle('on', m==='mat');
+  document.getElementById('modeB').classList.toggle('on', m==='manual');
+  document.getElementById('modeMatPanel').style.display = m==='mat'?'block':'none';
+  document.getElementById('modeManualPanel').style.display = m==='manual'?'block':'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MANUAL WEIGHT CALC
+// ═══════════════════════════════════════════════════════════════
+function calcManualWeight(){
+  var L=parseFloat(document.getElementById('mL').value)||0;
+  var W=parseFloat(document.getElementById('mW').value)||0;
+  var T=parseFloat(document.getElementById('mT').value)||0;
+  var diaMW=parseFloat(document.getElementById('mDia').value)||0;
+  var diaCW=parseFloat(document.getElementById('mDia2').value)||0;
+  var sMW=parseFloat(document.getElementById('mSpaceMW').value)||200;
+  var sCW=parseFloat(document.getElementById('mSpaceCW').value)||200;
+  var dens=parseFloat(document.getElementById('mDens').value)||7850;
+  if(!L||!W||!diaMW){ alert('Enter Length, Width and Wire Diameter MW at minimum.'); return; }
+  var Lm=L/1000, Wm=W/1000;
+  var nMW = Math.floor(Wm/(sMW/1000))+1;
+  var nCW = Math.floor(Lm/(sCW/1000))+1;
+  var lenMW = nMW*Lm;
+  var lenCW = nCW*Wm;
+  var wMW = lenMW * Math.PI*Math.pow(diaMW/2000,2) * dens;
+  var wCW = lenCW * Math.PI*Math.pow((diaCW||diaMW)/2000,2) * dens;
+  var totalKg = wMW + wCW;
+  var thickM = T/1000 || diaMW/1000;
+  currentMat = {mat_no:'MANUAL',mat_desc:'Manual Entry',length_mm:L,width_mm:W,weight_kg:totalKg,thick_m:thickM};
+  var out = document.getElementById('calcWeightOut');
+  out.style.display = 'block';
+  out.innerHTML = 'Calculated weight: <b>'+totalKg.toFixed(3)+' kg / sheet</b> ('+nMW+' MW wires × '+nCW+' CW wires)';
+  updateTotalTon();
+}
+
+function onMirrorChange(){
+  document.getElementById('mirrorOpts').style.display = document.getElementById('mirrorOn').checked?'block':'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+function gv(id){var v=parseFloat(document.getElementById(id).value);return isNaN(v)?0:v;}
+function gi(id){var v=parseInt(document.getElementById(id).value);return isNaN(v)?0:v;}
+function gc(id){return document.getElementById(id).checked;}
+function fmtRs(v){return '₹'+Math.round(v).toLocaleString('en-IN');}
+function fmtMT(v){return v.toFixed(3)+' MT';}
+function fmtPct(v){return Math.min(v,999).toFixed(1)+'%';}
+function clr(p){return p>=90?'good':p>=60?'warn':'bad';}
+function barClr(p){return p>=90?'#2E7D32':p>=60?'#E65100':'#C62828';}
+
+function updateTotalTon(){
+  var el=document.getElementById('totalTonDisplay');
+  var qty=parseInt(document.getElementById('qty').value)||0;
+  if(!currentMat||!qty){el.style.display='none';return;}
+  var totalKg=qty*currentMat.weight_kg;
+  var totalMT=totalKg/1000;
+  el.style.display='block';
+  el.innerHTML='Total order weight: <b>'+totalMT.toFixed(3)+' MT</b> &nbsp;('+qty+' × '+currentMat.weight_kg.toFixed(3)+' kg)';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN CALCULATION
+// ═══════════════════════════════════════════════════════════════
+function runCalculation(){
+  if(!currentMat){alert('Please select a material or calculate manual weight first.');return;}
+  var qty    = gi('qty')||1;
+  var rate   = gv('freightRate')||2105;
+  var mirrorOn= gc('mirrorOn');
+  var profNest= gc('profNest');
+  var nestPct = gv('nestPct')||20;
+  var sideC   = gv('sideC')/1000;
+  var endC    = gv('endC')/1000;
+  var lgap    = gv('lgap')/1000;
+  var maxT    = gi('maxT')||12;
+  var safeF   = gv('safeF')||0.95;
+  var mL  = currentMat.length_mm/1000;
+  var mW  = currentMat.width_mm/1000;
+  var mT  = currentMat.thick_m||0.012;
+  var mKg = currentMat.weight_kg;
+
+  // 1. Pre-compute capacity for every vehicle
+  var vcaps = vehs.map(function(v){
+    var usL=v.L-2*endC; if(usL<=0)usL=v.L;
+    var usW=v.W-2*sideC; if(usW<=0)usW=v.W;
+    var fitL=mL<=usL+0.001, fitW=mW<=usW+0.001, fits=fitL&&fitW;
+    if(!fits) return {v:v,fits:false,elimReason:!fitL?'LENGTH':'WIDTH',usL:usL,usW:usW,maxPcs:0,weightPerFullTrip:0,ppl:0,pAlongL:0,pAlongW:0,maxLayers:0,tierH:0,effT:0,stackH:0,limitReason:''};
+    var pAlongL=Math.max(1,Math.floor(usL/mL));
+    var pAlongW=Math.max(1,Math.floor(usW/mW));
+    var ppl=pAlongL*pAlongW;
+    var effT=(mirrorOn&&profNest)?mT*(1-nestPct/100):mT;
+    if(effT<=0.0001)effT=mT; if(effT<=0.0001)effT=0.001;
+    var tierH=effT+(mirrorOn?lgap:0); if(tierH<=0.0001)tierH=0.001;
+    var maxByH=Math.min(Math.floor(v.H/tierH)||1,maxT);
+    var maxByW=Math.floor((v.payload*safeF*1000/mKg)/ppl)||0;
+    var maxLayers=Math.min(maxByH,maxByW);
+    var maxPcs=maxLayers*ppl;
+    var limitReason=maxByH<=maxByW?'HEIGHT':'WEIGHT';
+    return {v:v,fits:true,elimReason:null,usL:usL,usW:usW,
+      ppl:ppl,pAlongL:pAlongL,pAlongW:pAlongW,
+      maxLayers:maxLayers,maxPcs:maxPcs,
+      weightPerFullTrip:maxPcs*mKg/1000,
+      tierH:tierH,effT:effT,stackH:maxLayers*tierH,limitReason:limitReason};
+  });
+
+  var feasible=vcaps.filter(function(c){return c.fits&&c.maxPcs>0;});
+  if(!feasible.length){
+    CR={mat:currentMat,qty:qty,rate:rate,vcaps:vcaps,optimised:null,mL:mL,mW:mW,mT:mT,mKg:mKg,mirrorOn:mirrorOn,nestPct:nestPct};
+    renderResults(); return;
+  }
+
+  // 2. Smart trip optimiser
+  function tripCost(pcs,vc){ var lMT=pcs*mKg/1000; return Math.max(lMT,vc.v.mg)*rate; }
+  function tripIdle(pcs,vc){ var lMT=pcs*mKg/1000; return Math.max(0,(Math.max(lMT,vc.v.mg)-lMT)*rate); }
+
+  var bestPlan=null, bestTotalIdle=Infinity;
+
+  feasible.forEach(function(mainVC){
+    // Try spreading qty evenly across N, N+1, N+2 trips using mainVC
+    var baseTrips=Math.ceil(qty/mainVC.maxPcs);
+    for(var nTrips=Math.max(1,baseTrips-1); nTrips<=baseTrips+3; nTrips++){
+      var pcsEach=Math.ceil(qty/nTrips);
+      if(pcsEach>mainVC.maxPcs) continue;
+      var lastPcs=qty-(nTrips-1)*pcsEach;
+      if(lastPcs<=0||lastPcs>mainVC.maxPcs) continue;
+      var idle=0,cost=0;
+      for(var t=0;t<nTrips-1;t++){idle+=tripIdle(pcsEach,mainVC);cost+=tripCost(pcsEach,mainVC);}
+      idle+=tripIdle(lastPcs,mainVC); cost+=tripCost(lastPcs,mainVC);
+      if(idle<bestTotalIdle){
+        bestTotalIdle=idle;
+        var trips=[];
+        for(var t2=0;t2<nTrips-1;t2++) trips.push({vc:mainVC,pcs:pcsEach});
+        trips.push({vc:mainVC,pcs:lastPcs});
+        bestPlan={trips:trips,totalIdle:idle,totalCost:cost,mainVC:mainVC,remVC:mainVC};
+      }
+    }
+
+    // Try: bulk trips on mainVC, remainder trip on a DIFFERENT (smaller) vehicle
+    var fullTrips=Math.floor(qty/mainVC.maxPcs);
+    var rem=qty-fullTrips*mainVC.maxPcs;
+    if(rem>0){
+      feasible.forEach(function(remVC){
+        if(remVC.maxPcs<rem) return;
+        var idle=fullTrips*tripIdle(mainVC.maxPcs,mainVC)+tripIdle(rem,remVC);
+        var cost=fullTrips*tripCost(mainVC.maxPcs,mainVC)+tripCost(rem,remVC);
+        if(idle<bestTotalIdle){
+          bestTotalIdle=idle;
+          var trips=[];
+          for(var t=0;t<fullTrips;t++) trips.push({vc:mainVC,pcs:mainVC.maxPcs});
+          trips.push({vc:remVC,pcs:rem});
+          bestPlan={trips:trips,totalIdle:idle,totalCost:cost,mainVC:mainVC,remVC:remVC};
+        }
+      });
+    }
+  });
+
+  // Enrich trip objects
+  if(bestPlan){
+    bestPlan.trips=bestPlan.trips.map(function(t,i){
+      var pcs=t.pcs,vc=t.vc;
+      var loadMT=pcs*mKg/1000;
+      var billedMT=Math.max(loadMT,vc.v.mg);
+      var idleMT=billedMT-loadMT;
+      var idle=Math.max(0,idleMT)*rate;
+      var cost=billedMT*rate;
+      var mgFill=loadMT/vc.v.mg*100;
+      return {tripNo:i+1,vc:vc,pcs:pcs,loadMT:loadMT,billedMT:billedMT,idleMT:idleMT,idle:idle,cost:cost,mgFill:mgFill};
+    });
+    bestPlan.totalLoad=bestPlan.trips.reduce(function(s,t){return s+t.loadMT;},0);
+    bestPlan.avgMgFill=bestPlan.trips.reduce(function(s,t){return s+t.mgFill;},0)/bestPlan.trips.length;
+  }
+
+  CR={mat:currentMat,qty:qty,rate:rate,vcaps:vcaps,optimised:bestPlan,mL:mL,mW:mW,mT:mT,mKg:mKg,mirrorOn:mirrorOn,nestPct:nestPct};
+  renderResults();
+  document.getElementById('statusBadge').className='tb-badge done';
+  document.getElementById('statusBadge').textContent='ANALYSIS COMPLETE';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER RESULTS
+// ═══════════════════════════════════════════════════════════════
+function renderResults(){
+  var r=CR, op=r.optimised;
+  document.getElementById('emptyState').style.display='none';
+  var rc=document.getElementById('resultsContent');
+  rc.style.display='block';
+  var html='';
+
+  // Vehicle capacity analysis table
+  html+='<div class="vtable-wrap"><div class="vtable-head"><h3>Vehicle Capacity Analysis</h3></div>';
+  html+='<table class="vtable"><thead><tr><th>Vehicle</th><th>Deck (L×W×H)</th><th>MG / Payload</th><th>Status</th><th>Max Pcs/Trip</th><th>Max Weight/Trip</th><th>Limit</th></tr></thead><tbody>';
+  r.vcaps.forEach(function(vc){
+    var used=op&&op.trips.some(function(t){return t.vc.v.name===vc.v.name;});
+    var rowClass=vc.fits?(used?'best-row':''):'elim-row';
+    html+='<tr class="'+rowClass+'"><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+vc.v.color+';margin-right:6px;vertical-align:middle;"></span><b>'+vc.v.name+'</b></td>';
+    html+='<td style="font-family:var(--mono);font-size:11px;">'+vc.v.L+'m×'+vc.v.W+'m×'+vc.v.H+'m</td>';
+    html+='<td style="font-family:var(--mono);font-size:11px;">'+vc.v.mg+' MT / '+vc.v.payload+' MT</td>';
+    if(!vc.fits){
+      html+='<td><span class="elim-badge">✕ '+vc.elimReason+' EXCEEDS</span></td>';
+      html+='<td colspan="3" style="color:var(--txt3);font-size:11px;">'+r.mL.toFixed(3)+'m×'+r.mW.toFixed(3)+'m exceeds '+vc.usL.toFixed(2)+'m×'+vc.usW.toFixed(2)+'m usable deck</td>';
+    } else {
+      html+='<td>'+(used?'<span class="best-badge">★ USED</span>':'<span class="ok-badge">✓ AVAILABLE</span>')+'</td>';
+      html+='<td style="font-family:var(--mono);">'+vc.maxPcs+'</td>';
+      html+='<td style="font-family:var(--mono);">'+(vc.maxPcs*r.mKg/1000).toFixed(3)+' MT</td>';
+      html+='<td><span class="warn-badge">'+vc.limitReason+'</span></td>';
+    }
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+
+  if(!op){
+    html+='<div class="constraint-box">No vehicle found for '+r.mL.toFixed(3)+'m×'+r.mW.toFixed(3)+'m. Add a suitable vehicle in Vehicle Settings.</div>';
+    rc.innerHTML=html; return;
+  }
+
+  // Summary stat cards
+  var totalPcs=op.trips.reduce(function(s,t){return s+t.pcs;},0);
+  var totalLoad=op.trips.reduce(function(s,t){return s+t.loadMT;},0);
+  var totalBilled=op.trips.reduce(function(s,t){return s+t.billedMT;},0);
+  var naiveCost=calcNaiveCost(r,op.mainVC);
+
+  html+='<div class="results-grid">';
+  html+=stat('Optimised Trips',''+op.trips.length,'','');
+  html+=stat('Total Pieces',''+totalPcs+' / '+r.qty,'','');
+  html+=stat('Total Cargo Weight',fmtMT(totalLoad),'','');
+  html+=stat('Avg MG Fill',fmtPct(op.avgMgFill),clr(op.avgMgFill),'');
+  html+=stat('Total Freight',fmtRs(op.totalCost),'','');
+  html+=stat('Total Idle Loss',fmtRs(op.totalIdle),op.totalIdle>0?'bad':'good','');
+  html+=stat('Saving vs Naive Split',fmtRs(Math.max(0,naiveCost.idle-op.totalIdle)),'good','');
+  html+=stat('Vehicles Used',uniqueVehicleNames(op.trips),'','');
+  html+='</div>';
+
+  // Savings explanation
+  if(naiveCost.idle>op.totalIdle+10){
+    html+='<div class="constraint-box constraint-ok">✓ <b>Optimised plan saves '+fmtRs(naiveCost.idle-op.totalIdle)+'</b> in idle freight. ';
+    html+='Naive split would send '+naiveCost.trips+' trips of '+naiveCost.mainVCName+' with a final trip of only '+naiveCost.lastPcs+' pieces (idle loss: '+fmtRs(naiveCost.lastIdle)+'). ';
+    if(uniqueVehicleCount(op.trips)>1) html+='The remainder of '+op.trips[op.trips.length-1].pcs+' pieces is sent on a <b>'+op.trips[op.trips.length-1].vc.v.name+'</b> to reduce idle loss.';
+    else html+='Load is spread evenly across trips to maximise MG fill on every trip.';
+    html+='</div>';
+  }
+
+  // ── OPTIMISED DISPATCH TABLE ──────────────────────────────────
+  html+='<div class="vtable-wrap">';
+  html+='<div class="vtable-head" style="display:flex;align-items:center;justify-content:space-between;">';
+  html+='<h3>Optimised Dispatch Plan — '+op.trips.length+' Trip(s)</h3>';
+  html+='<span style="font-size:11px;color:var(--sky3);font-family:var(--mono);">idle freight minimised</span></div>';
+  html+='<table class="vtable"><thead><tr>';
+  html+='<th>#</th><th>Vehicle</th><th>Pieces</th><th>Cargo MT</th><th>Billed MT</th><th>MG Fill</th><th>Idle MT</th><th>Idle Loss</th><th>Trip Freight</th></tr></thead><tbody>';
+
+  op.trips.forEach(function(t){
+    var isLast=t===op.trips[op.trips.length-1];
+    var bg=isLast&&op.trips.length>1?' style="background:#FFFDE7;"':'';
+    html+='<tr'+bg+'>';
+    html+='<td style="font-family:var(--mono);font-weight:600;">#'+t.tripNo+'</td>';
+    html+='<td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+t.vc.v.color+';margin-right:5px;"></span>'+t.vc.v.name+'</td>';
+    html+='<td style="font-family:var(--mono);">'+t.pcs+'</td>';
+    html+='<td style="font-family:var(--mono);">'+t.loadMT.toFixed(3)+'</td>';
+    var mgNote=t.billedMT>t.loadMT+0.001?' <span style="font-size:9px;color:var(--red);">(MG)</span>':'';
+    html+='<td style="font-family:var(--mono);">'+t.billedMT.toFixed(3)+mgNote+'</td>';
+    var mgW=Math.min(t.mgFill,100);
+    html+='<td><div class="fill-bar-wrap"><div class="fill-bar"><div class="fill-bar-inner" style="width:'+mgW+'%;background:'+barClr(t.mgFill)+';"></div></div>';
+    html+='<span class="fill-pct" style="color:'+barClr(t.mgFill)+';">'+fmtPct(t.mgFill)+'</span></div></td>';
+    var idleClr=t.idle>0?'color:var(--red2)':'color:var(--green2)';
+    html+='<td style="font-family:var(--mono);'+idleClr+';">'+t.idleMT.toFixed(3)+'</td>';
+    html+='<td style="font-family:var(--mono);'+idleClr+';">'+fmtRs(t.idle)+'</td>';
+    html+='<td style="font-family:var(--mono);font-weight:600;">'+fmtRs(t.cost)+'</td>';
+    html+='</tr>';
+  });
+
+  html+='<tr style="background:var(--navy);">';
+  html+='<td colspan="2" style="color:white;font-weight:600;padding:10px 12px;">TOTAL — '+op.trips.length+' trips</td>';
+  html+='<td style="font-family:var(--mono);color:white;">'+totalPcs+'</td>';
+  html+='<td style="font-family:var(--mono);color:white;">'+totalLoad.toFixed(3)+'</td>';
+  html+='<td style="font-family:var(--mono);color:white;">'+totalBilled.toFixed(3)+'</td>';
+  html+='<td style="font-family:var(--mono);color:var(--sky3);">'+fmtPct(op.avgMgFill)+' avg</td>';
+  html+='<td style="font-family:var(--mono);color:var(--sky3);">'+(totalBilled-totalLoad).toFixed(3)+'</td>';
+  html+='<td style="font-family:var(--mono);color:#EF9A9A;">'+fmtRs(op.totalIdle)+'</td>';
+  html+='<td style="font-family:var(--mono);font-weight:600;color:white;">'+fmtRs(op.totalCost)+'</td>';
+  html+='</tr>';
+  html+='</tbody></table></div>';
+
+  // ── LOAD DIAGRAM ─────────────────────────────────────────────
+  html+='<div class="plan-wrap"><div class="plan-head"><h3>Load Diagram — '+op.mainVC.v.name+' (full trip)</h3>';
+  html+='<div class="plan-tabs"><button class="plan-tab on" onclick="switchVizTab(\'top\',this)">Top</button>';
+  html+='<button class="plan-tab" onclick="switchVizTab(\'side\',this)">Side</button>';
+  html+='<button class="plan-tab" onclick="switchVizTab(\'front\',this)">Front</button></div></div>';
+  html+='<div class="plan-body"><canvas id="cv" width="660" height="260"></canvas>';
+  html+='<div style="font-size:10px;color:var(--txt3);margin-top:6px;" id="vizInfo"></div></div></div>';
+
+  // Per-trip freight cards
+  html+='<div class="freight-grid">';
+  op.trips.forEach(function(t){
+    var cardCls=t.idle>0.5?'loss':'profit';
+    html+='<div class="freight-card '+cardCls+'">';
+    html+='<div class="freight-title">Trip #'+t.tripNo+' — '+t.vc.v.name+'</div>';
+    html+=frow('Pieces loaded',''+t.pcs+' sheets');
+    html+=frow('Cargo weight',t.loadMT.toFixed(3)+' MT');
+    html+=frow('MG threshold',t.vc.v.mg+' MT');
+    html+=frow('Billed MT',t.billedMT.toFixed(3)+' MT'+(t.billedMT>t.loadMT+0.001?' <span style="font-size:9px;color:var(--red);">(MG applied)</span>':''));
+    html+=frow('MG Fill %',fmtPct(t.mgFill));
+    html+=frow('Idle MT',t.idleMT.toFixed(3)+' MT','color:var(--red2)');
+    html+=frow('Idle loss',fmtRs(t.idle),'color:var(--red2);font-weight:600');
+    html+=frow('Trip freight',fmtRs(t.cost),'font-weight:600');
+    html+='</div>';
+  });
+  html+='</div>';
+
+  if(r.mirrorOn){
+    html+='<div class="constraint-box constraint-ok">Mirror loading: '+r.nestPct+'% nesting reduction. Effective thickness = '+(op.mainVC.effT*1000).toFixed(2)+'mm vs '+(r.mT*1000).toFixed(2)+'mm → '+op.mainVC.maxLayers+' layers/trip.</div>';
+  }
+
+  rc.innerHTML=html;
+  drawViz('top');
+}
+
+function calcNaiveCost(r,mainVC){
+  var trips=Math.ceil(r.qty/mainVC.maxPcs);
+  var lastPcs=r.qty-(trips-1)*mainVC.maxPcs;
+  var lastLoad=lastPcs*r.mKg/1000;
+  var lastBilled=Math.max(lastLoad,mainVC.v.mg);
+  var lastIdle=Math.max(0,(lastBilled-lastLoad)*r.rate);
+  var fullLoad=mainVC.weightPerFullTrip;
+  var fullIdle=Math.max(0,(Math.max(fullLoad,mainVC.v.mg)-fullLoad)*r.rate);
+  var totalIdle=(trips-1)*fullIdle+lastIdle;
+  return {trips:trips,lastPcs:lastPcs,lastIdle:lastIdle,idle:totalIdle,mainVCName:mainVC.v.name};
+}
+function uniqueVehicleNames(trips){
+  var seen={},names=[];
+  trips.forEach(function(t){if(!seen[t.vc.v.name]){seen[t.vc.v.name]=1;names.push(t.vc.v.name);}});
+  return names.length===1?names[0]:names.length+' types';
+}
+function uniqueVehicleCount(trips){var seen={};trips.forEach(function(t){seen[t.vc.v.name]=1;});return Object.keys(seen).length;}
+function stat(lbl,val,cls){return '<div class="stat-card"><div class="stat-val '+cls+'">'+val+'</div><div class="stat-lbl">'+lbl+'</div></div>';}
+function frow(l,v,style){return '<div class="frow"><span>'+l+'</span><span style="font-family:var(--mono);font-size:12px;'+(style||'')+'">'+v+'</span></div>';}
+
+
+// ═══════════════════════════════════════════════════════════════
+// VISUALISATION
+// ═══════════════════════════════════════════════════════════════
+function switchVizTab(tab,btn){
+  activeTab=tab;
+  document.querySelectorAll('.plan-tab').forEach(function(t){t.classList.remove('on');});
+  btn.classList.add('on');
+  drawViz(tab);
+}
+
+function drawViz(view){
+  if(!CR||!CR.optimised)return;
+  var b=CR.optimised.mainVC; // use main vehicle for diagram
+  var v=b.v;
+  var cv=document.getElementById('cv'); if(!cv)return;
+  var ctx=cv.getContext('2d');
+  var CW=cv.width,CH=cv.height;
+  ctx.clearRect(0,0,CW,CH);
+  ctx.fillStyle='#F7FAFF'; ctx.fillRect(0,0,CW,CH);
+  var pad=50, dw=CW-2*pad, dh=CH-pad-40;
+  var vColor=v.color;
+  function txt(x,y,t,c,sz,align){ctx.fillStyle=c||'#3C5A7A';ctx.font=(sz||10)+'px "DM Mono",monospace';ctx.textAlign=align||'center';ctx.fillText(t,x,y);}
+  var sideC=gv('sideC')/1000, endC=gv('endC')/1000;
+
+  if(view==='top'){
+    var sx=dw/v.L, sy=dh/v.W, ox=pad, oy=pad-10;
+    ctx.fillStyle='#E8F0F8'; ctx.beginPath(); ctx.roundRect(ox,oy,v.L*sx,v.W*sy,4); ctx.fill();
+    ctx.strokeStyle='#90A4C0'; ctx.lineWidth=2; ctx.strokeRect(ox,oy,v.L*sx,v.W*sy);
+    ctx.strokeStyle='rgba(21,101,192,0.2)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+    ctx.strokeRect(ox+endC*sx,oy+sideC*sy,b.usL*sx,b.usW*sy);
+    ctx.setLineDash([]);
+    var alpha=Math.min(0.75,0.4+0.3/b.ppl);
+    for(var pi=0;pi<b.pAlongL;pi++){
+      for(var pj=0;pj<b.pAlongW;pj++){
+        if(pi*b.pAlongW+pj>=b.maxPcs)break;
+        var sx2=CR.mL*sx, sy2=CR.mW*sy;
+        var px=ox+endC*sx+pi*sx2, py=oy+sideC*sy+pj*sy2;
+        ctx.fillStyle=hexToRgba(vColor,alpha);
+        if(CR.mirrorOn&&(pi+pj)%2===1){ctx.globalAlpha=0.55;}else{ctx.globalAlpha=1;}
+        ctx.fillRect(px+1,py+1,sx2-2,sy2-2);
+        ctx.globalAlpha=1;
+        ctx.strokeStyle=vColor; ctx.lineWidth=1.2; ctx.strokeRect(px+1,py+1,sx2-2,sy2-2);
+        if(CR.mirrorOn&&(pi+pj)%2===1){
+          ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=0.5;
+          ctx.beginPath(); ctx.moveTo(px+2,py+2); ctx.lineTo(px+sx2-2,py+sy2-2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(px+sx2-2,py+2); ctx.lineTo(px+2,py+sy2-2); ctx.stroke();
+        }
+        if(sx2>28&&sy2>14){txt(px+sx2/2,py+sy2/2+3,'P'+((pi*b.pAlongW+pj)+1),'#fff',9);}
+      }
+    }
+    txt(ox+v.L*sx/2,CH-8,v.L+'m deck','#3C5A7A',10);
+    ctx.save(); ctx.translate(pad-22,oy+v.W*sy/2); ctx.rotate(-Math.PI/2);
+    txt(0,0,v.W+'m width','#3C5A7A',10); ctx.restore();
+    txt(CW-pad,pad-2,b.ppl+' pcs/layer × '+b.maxLayers+' layers = '+b.maxPcs+' pcs/trip',vColor,10,'right');
+    document.getElementById('vizInfo').textContent='Top view — '+b.pAlongL+'× along length, '+b.pAlongW+'× across width = '+b.ppl+' sheets per layer';
+
+  } else if(view==='side'){
+    var sx=dw/v.L, sy=dh/(v.H||1), ox=pad, oy=pad-10;
+    ctx.fillStyle='#E8F0F8'; ctx.fillRect(ox,oy,v.L*sx,v.H*sy);
+    ctx.strokeStyle='#90A4C0'; ctx.lineWidth=2; ctx.strokeRect(ox,oy,v.L*sx,v.H*sy);
+    var baseY=oy+v.H*sy;
+    for(var li=0;li<b.maxLayers;li++){
+      var bH=b.effT*sy, bY=baseY-(li+1)*b.tierH*sy;
+      var bX=ox+endC*sx, bW=b.usL*sx;
+      ctx.fillStyle=li%2===0?hexToRgba(vColor,0.6):hexToRgba(vColor,0.35);
+      ctx.fillRect(bX,bY,bW,bH);
+      ctx.strokeStyle=vColor; ctx.lineWidth=1; ctx.strokeRect(bX+0.5,bY+0.5,bW-1,bH-1);
+      if(bH>10&&bW>40){txt(bX+bW/2,bY+bH/2+3,'Layer '+(li+1),li%2===0?'#fff':vColor,9);}
+      if(CR.mirrorOn&&li%2===1){
+        ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=0.5;
+        ctx.beginPath(); ctx.moveTo(bX+2,bY+2); ctx.lineTo(bX+bW-2,bY+bH-2); ctx.stroke();
+      }
+    }
+    txt(ox+v.L*sx/2,CH-8,v.L+'m length','#3C5A7A',10);
+    ctx.save(); ctx.translate(pad-22,oy+v.H*sy/2); ctx.rotate(-Math.PI/2);
+    txt(0,0,v.H+'m height','#3C5A7A',10); ctx.restore();
+    txt(CW-pad,pad-2,'Stack: '+b.stackH.toFixed(3)+'m / '+v.H+'m',vColor,10,'right');
+    document.getElementById('vizInfo').textContent='Side view — '+b.maxLayers+' layers × '+(b.effT*1000).toFixed(2)+'mm'+(CR.mirrorOn?' (nesting '+CR.nestPct+'% reduction)':'');
+
+  } else {
+    var sx=dw/v.W, sy=dh/(v.H||1), ox=pad, oy=pad-10;
+    ctx.fillStyle='#E8F0F8'; ctx.fillRect(ox,oy,v.W*sx,v.H*sy);
+    ctx.strokeStyle='#90A4C0'; ctx.lineWidth=2; ctx.strokeRect(ox,oy,v.W*sx,v.H*sy);
+    var baseY=oy+v.H*sy;
+    for(var li=0;li<b.maxLayers;li++){
+      var bH=b.effT*sy, bY=baseY-(li+1)*b.tierH*sy;
+      for(var wi=0;wi<b.pAlongW;wi++){
+        var bX=ox+sideC*sx+wi*CR.mW*sx, bW2=CR.mW*sx;
+        ctx.fillStyle=li%2===0?hexToRgba(vColor,0.6):hexToRgba(vColor,0.35);
+        ctx.fillRect(bX+1,bY,bW2-2,bH);
+        ctx.strokeStyle=vColor; ctx.lineWidth=1; ctx.strokeRect(bX+1,bY,bW2-2,bH);
+      }
+    }
+    txt(ox+v.W*sx/2,CH-8,v.W+'m width','#3C5A7A',10);
+    ctx.save(); ctx.translate(pad-22,oy+v.H*sy/2); ctx.rotate(-Math.PI/2);
+    txt(0,0,v.H+'m height','#3C5A7A',10); ctx.restore();
+    txt(CW-pad,pad-2,b.pAlongW+'× across width',vColor,10,'right');
+    document.getElementById('vizInfo').textContent='Front view — '+b.pAlongW+' sheets across width, '+b.maxLayers+' layers tall';
+  }
+}
+
+function hexToRgba(hex,a){
+  var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VEHICLE SETTINGS PAGE
+// ═══════════════════════════════════════════════════════════════
+function renderVehConfig(){
+  var g=document.getElementById('vehConfigGrid');
+  var colors=['#1565C0','#2E7D32','#6A1B9A','#E65100','#00695C'];
+  g.innerHTML='';
+  vehs.forEach(function(v,i){
+    var c=v.color||colors[i];
+    var d=document.createElement('div');
+    d.className='veh-cfg-card';
+    d.innerHTML=
+      '<div class="vcfg-head" style="background:'+c+'20;border-bottom:1px solid '+c+'30;">'+
+        '<span style="width:12px;height:12px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0;"></span>'+
+        '<input type="text" value="'+v.name+'" onchange="vehs['+i+'].name=this.value" style="border:none;background:transparent;font-size:11px;font-weight:600;color:'+c+';padding:0;width:100%;outline:none;">'+
+      '</div>'+
+      '<div class="vcfg-body">'+
+        '<div><label>Deck L (m)</label><input type="number" value="'+v.L+'" step="0.1" onchange="vehs['+i+'].L=parseFloat(this.value)||6"></div>'+
+        '<div><label>Deck W (m)</label><input type="number" value="'+v.W+'" step="0.1" onchange="vehs['+i+'].W=parseFloat(this.value)||2.2"></div>'+
+        '<div><label>Stack H (m)</label><input type="number" value="'+v.H+'" step="0.1" onchange="vehs['+i+'].H=parseFloat(this.value)||2"></div>'+
+        '<div><label>Payload MT</label><input type="number" value="'+v.payload+'" step="0.5" onchange="vehs['+i+'].payload=parseFloat(this.value)||7"></div>'+
+        '<div><label>MG (MT)</label><input type="number" value="'+v.mg+'" step="0.5" onchange="vehs['+i+'].mg=parseFloat(this.value)||10"></div>'+
+        '<div><label>Rate ₹/MT</label><input type="number" value="'+v.rate+'" step="50" onchange="vehs['+i+'].rate=parseFloat(this.value)||1500"></div>'+
+      '</div>';
+    g.appendChild(d);
+  });
+}
+
+function saveSettings(){
+  localStorage.setItem('sf_vehs',JSON.stringify(vehs));
+  document.getElementById('saveMsg').style.display='block';
+  setTimeout(function(){document.getElementById('saveMsg').style.display='none';},2500);
+}
+
+// init select
+populateMatSelect('');
+</script>
+</body>
+</html>
+
+```
