@@ -1,4 +1,7 @@
 
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -323,12 +326,12 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
     </div>
     <div class="scard-body">
       <div class="g2">
-        <div class="fg"><label>Side clearance (mm)</label><input type="number" id="sideC" value="50"></div>
-        <div class="fg"><label>End clearance (mm)</label><input type="number" id="endC" value="100"></div>
+        <div class="fg"><label>Side clearance (mm)</label><input type="number" id="sideC" value="0"></div>
+        <div class="fg"><label>End clearance (mm)</label><input type="number" id="endC" value="0"></div>
       </div>
       <div class="g2">
-        <div class="fg"><label>Layer gap (mm)</label><input type="number" id="lgap" value="5"></div>
-        <div class="fg"><label>Max tiers</label><input type="number" id="maxT" value="12"></div>
+        <div class="fg"><label>Layer gap (mm)</label><input type="number" id="lgap" value="0"></div>
+        <div class="fg"><label>Max tiers (0 = maximize)</label><input type="number" id="maxT" value="0"></div>
       </div>
       <div class="fg"><label>Safety weight factor</label><input type="number" id="safeF" value="0.95" step="0.01"></div>
     </div>
@@ -513,7 +516,7 @@ function runCalculation(){
   var sideC   = gv('sideC')/1000;
   var endC    = gv('endC')/1000;
   var lgap    = gv('lgap')/1000;
-  var maxT    = gi('maxT')||12;
+  var maxT    = gi('maxT'); if(maxT<=0) maxT=9999;
   var safeF   = gv('safeF')||0.95;
   var mL  = currentMat.length_mm/1000;
   var mW  = currentMat.width_mm/1000;
@@ -666,7 +669,7 @@ function renderResults(){
   html+=stat('Total Cargo Weight',fmtMT(totalLoad),'','');
   html+=stat('Avg MG Fill',fmtPct(op.avgMgFill),clr(op.avgMgFill),'');
   html+=stat('Total Freight',fmtRs(op.totalCost),'','');
-  html+=stat('Total Idle Loss',fmtRs(op.totalIdle),op.totalIdle>0?'bad':'good','');
+  html+=stat('Total Idle Loss',fmtRs(op.totalIdle)+(op.totalIdle>0&&totalLoad>0?'<div style="font-family:var(--mono);font-weight:600;color:var(--red2);margin-top:4px;">'+fmtRs(op.totalIdle/totalLoad)+' / ton</div>':''),op.totalIdle>0?'bad':'good','');
   html+=stat('Saving vs Naive Split',fmtRs(Math.max(0,naiveCost.idle-op.totalIdle)),'good','');
   html+=stat('Vehicles Used',uniqueVehicleNames(op.trips),'','');
   html+='</div>';
@@ -703,7 +706,7 @@ function renderResults(){
     html+='<span class="fill-pct" style="color:'+barClr(t.mgFill)+';">'+fmtPct(t.mgFill)+'</span></div></td>';
     var idleClr=t.idle>0?'color:var(--red2)':'color:var(--green2)';
     html+='<td style="font-family:var(--mono);'+idleClr+';">'+t.idleMT.toFixed(3)+'</td>';
-    html+='<td style="font-family:var(--mono);'+idleClr+';">'+fmtRs(t.idle)+'</td>';
+    html+='<td style="font-family:var(--mono);'+idleClr+';">'+fmtRs(t.idle)+(t.idle>0&&t.loadMT>0?'<div style="font-family:var(--mono);'+idleClr+';">'+fmtRs(t.idle/t.loadMT)+' / ton</div>':'')+'</td>';
     html+='<td style="font-family:var(--mono);font-weight:600;">'+fmtRs(t.cost)+'</td>';
     html+='</tr>';
   });
@@ -715,7 +718,7 @@ function renderResults(){
   html+='<td style="font-family:var(--mono);color:white;">'+totalBilled.toFixed(3)+'</td>';
   html+='<td style="font-family:var(--mono);color:var(--sky3);">'+fmtPct(op.avgMgFill)+' avg</td>';
   html+='<td style="font-family:var(--mono);color:var(--sky3);">'+(totalBilled-totalLoad).toFixed(3)+'</td>';
-  html+='<td style="font-family:var(--mono);color:#EF9A9A;">'+fmtRs(op.totalIdle)+'</td>';
+  html+='<td style="font-family:var(--mono);color:#EF9A9A;">'+fmtRs(op.totalIdle)+(op.totalIdle>0&&totalLoad>0?'<div style="font-family:var(--mono);color:#EF9A9A;">'+fmtRs(op.totalIdle/totalLoad)+' / ton</div>':'')+'</td>';
   html+='<td style="font-family:var(--mono);font-weight:600;color:white;">'+fmtRs(op.totalCost)+'</td>';
   html+='</tr>';
   html+='</tbody></table></div>';
@@ -741,6 +744,7 @@ function renderResults(){
     html+=frow('MG Fill %',fmtPct(t.mgFill));
     html+=frow('Idle MT',t.idleMT.toFixed(3)+' MT','color:var(--red2)');
     html+=frow('Idle loss',fmtRs(t.idle),'color:var(--red2);font-weight:600');
+    html+=frow('Idle loss per ton',t.loadMT>0?fmtRs(t.idle/t.loadMT)+' / ton':t.idle===0?'₹0':'—','color:var(--red2);font-weight:600');
     html+=frow('Trip freight',fmtRs(t.cost),'font-weight:600');
     html+='</div>';
   });
