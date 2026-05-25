@@ -1,7 +1,3 @@
-
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -183,6 +179,9 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
 .save-btn{display:inline-flex;align-items:center;gap:6px;background:var(--blue);color:white;border:none;padding:10px 22px;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
 .save-btn:hover{background:var(--blue3);}
 
+.btn-download{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.10);color:var(--sky3);border:1px solid rgba(255,255,255,.2);padding:5px 14px;border-radius:var(--r2);font-family:var(--mono);font-size:10px;font-weight:500;cursor:pointer;letter-spacing:.8px;transition:all .15s;}
+.btn-download:hover{background:rgba(255,255,255,.18);border-color:var(--sky3);}
+.btn-download:disabled{opacity:.35;cursor:not-allowed;}
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -205,6 +204,10 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
   </nav>
   <div class="tb-right">
     <span class="tb-badge idle" id="statusBadge">AWAITING INPUT</span>
+    <button class="btn-download" id="dlBtn" onclick="downloadReport()" disabled title="Run calculation first">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5v2zm7-18v11.17l-3.59-3.58L7 11l5 5 5-5-1.41-1.41L13 13.17V2h-1z"/></svg>
+      REPORT
+    </button>
   </div>
 </div>
 
@@ -253,17 +256,16 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
         <div class="g3">
           <div class="fg"><label>Length (mm)</label><input type="number" id="mL" placeholder="6000"></div>
           <div class="fg"><label>Width (mm)</label><input type="number" id="mW" placeholder="2400"></div>
-          <div class="fg"><label>Thickness (mm)</label><input type="number" id="mT" placeholder="12"></div>
+          <div class="fg"><label>Thickness (mm) <span style="font-size:9px;color:var(--blue);font-weight:600;">AUTO</span></label><input type="number" id="mT" placeholder="auto: MW+CW dia" readonly style="background:var(--sky);color:var(--blue);cursor:default;" title="Auto-calculated as MW wire diameter + CW wire diameter"></div>
         </div>
         <div class="g2">
-          <div class="fg"><label>Wire Dia MW (mm)</label><input type="number" id="mDia" placeholder="6" step="0.1"></div>
-          <div class="fg"><label>Wire Dia CW (mm)</label><input type="number" id="mDia2" placeholder="6" step="0.1"></div>
+          <div class="fg"><label>Wire Dia MW (mm)</label><input type="number" id="mDia" placeholder="6" step="0.1" oninput="autoThickness()"></div>
+          <div class="fg"><label>Wire Dia CW (mm)</label><input type="number" id="mDia2" placeholder="6" step="0.1" oninput="autoThickness()"></div>
         </div>
         <div class="g2">
           <div class="fg"><label>MW Spacing (mm)</label><input type="number" id="mSpaceMW" placeholder="200"></div>
           <div class="fg"><label>CW Spacing (mm)</label><input type="number" id="mSpaceCW" placeholder="200"></div>
         </div>
-        <div class="fg"><label>Wire Density (kg/m³)</label><input type="number" id="mDens" value="7850"></div>
         <div id="calcWeightOut" style="display:none;background:var(--sky);border:1px solid var(--sky2);border-radius:var(--r2);padding:8px 10px;font-size:11px;color:var(--blue);margin-top:-4px;"></div>
         <button class="btn-sec" onclick="calcManualWeight()">Calculate Weight per Sheet</button>
       </div>
@@ -277,17 +279,25 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
       <span class="scard-title">Cargo Details</span>
     </div>
     <div class="scard-body">
+      <!-- Cargo quantity: 3-way input -->
       <div class="fg">
-        <label>Number of Sheets / Pieces</label>
-        <div class="qty-row">
-          <input type="number" id="qty" value="100" min="1" oninput="updateTotalTon()">
-          <span class="qty-lbl">sheets</span>
+        <label>Order Quantity — enter any one</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px;">
+          <div>
+            <div style="font-size:9px;font-weight:600;color:var(--txt3);letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px;">SHEETS</div>
+            <input type="number" id="qty" value="100" min="1" placeholder="sheets" oninput="syncQty('sheets')">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:600;color:var(--txt3);letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px;">WEIGHT (MT)</div>
+            <input type="number" id="qtyMT" placeholder="MT" step="0.001" oninput="syncQty('mt')">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:600;color:var(--txt3);letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px;">AREA (m²)</div>
+            <input type="number" id="qtySqm" placeholder="m²" step="0.01" oninput="syncQty('sqm')">
+          </div>
         </div>
-        <div id="totalTonDisplay" style="display:none;margin-top:6px;padding:7px 10px;background:var(--sky);border:1px solid var(--sky2);border-radius:var(--r2);font-size:11px;color:var(--blue);font-family:var(--mono);"></div>
-      </div>
-      <div class="fg">
-        <label>Freight Rate (₹ / MT)</label>
-        <input type="number" id="freightRate" value="2105">
+        <div id="totalTonDisplay" style="display:none;margin-top:4px;padding:7px 10px;background:var(--sky);border:1px solid var(--sky2);border-radius:var(--r2);font-size:11px;color:var(--blue);font-family:var(--mono);line-height:1.8;"></div>
+        <div class="hint">Enter sheets, weight in MT, or area in m² — the other two auto-fill.</div>
       </div>
     </div>
   </div>
@@ -310,10 +320,7 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
           <input type="number" id="nestPct" value="20" min="0" max="50">
           <span class="hint">Typical: 15–25% for mesh. Reduces effective thickness per layer.</span>
         </div>
-        <div class="toggle-row">
-          <span class="toggle-lbl">Profile nesting (ridges into valleys)</span>
-          <label class="toggle-sw"><input type="checkbox" id="profNest"><span class="sl"></span></label>
-        </div>
+        <div id="mirrorThicknessInfo" style="display:none;background:var(--sky);border:1px solid var(--sky2);border-radius:4px;padding:6px 10px;margin-top:6px;font-size:11px;color:var(--blue);font-family:var(--mono);line-height:1.8;"></div>
       </div>
     </div>
   </div>
@@ -330,10 +337,32 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
         <div class="fg"><label>End clearance (mm)</label><input type="number" id="endC" value="0"></div>
       </div>
       <div class="g2">
-        <div class="fg"><label>Layer gap (mm)</label><input type="number" id="lgap" value="0"></div>
+        <div class="fg"><label>Layer gap (mm) <span style="font-size:9px;color:var(--txt3);">(0 = pure nesting)</span></label><input type="number" id="lgap" value="0"></div>
         <div class="fg"><label>Max tiers (0 = maximize)</label><input type="number" id="maxT" value="0"></div>
       </div>
-      <div class="fg"><label>Safety weight factor</label><input type="number" id="safeF" value="0.95" step="0.01"></div>
+    </div>
+  </div>
+
+  <!-- MANUAL VEHICLE OVERRIDE -->
+  <div class="scard">
+    <div class="scard-head">
+      <div class="scard-icon"><svg viewBox="0 0 24 24"><path d="M18 18.5a1.5 1.5 0 01-1.5-1.5 1.5 1.5 0 011.5-1.5 1.5 1.5 0 011.5 1.5 1.5 1.5 0 01-1.5 1.5m-12 0a1.5 1.5 0 01-1.5-1.5 1.5 1.5 0 011.5-1.5 1.5 1.5 0 011.5 1.5A1.5 1.5 0 016 18.5M19.5 9.5l-1.5-4.5H4L2 9.5V17h20V9.5h-2.5z"/></svg></div>
+      <span class="scard-title">Vehicle Override</span>
+    </div>
+    <div class="scard-body">
+      <div class="toggle-row">
+        <span class="toggle-lbl">Force a specific vehicle</span>
+        <label class="toggle-sw"><input type="checkbox" id="manualVehOn" onchange="onManualVehChange()"><span class="sl"></span></label>
+      </div>
+      <div id="manualVehPanel" style="display:none;margin-top:8px;">
+        <div class="fg">
+          <label>Select Vehicle</label>
+          <select id="manualVehSelect">
+            <option value="">— auto select —</option>
+          </select>
+          <span class="hint">Useful when only one vehicle is available. Status and recommendation still shown in results.</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -359,7 +388,7 @@ canvas#cv{display:block;border-radius:6px;border:1px solid var(--border);}
 <div class="page" id="page-settings">
 <div class="settings-layout">
   <div class="settings-h">Vehicle Configuration</div>
-  <div class="settings-sub">Configure deck dimensions, payload, MG, and freight rate for each of the 5 vehicle slots. Changes apply immediately to calculator.</div>
+  <div class="settings-sub">Configure deck dimensions, payload, MG, and freight rate for each vehicle. Toggle vehicles on/off and set safety star ratings (1–5). Changes apply immediately to calculator.</div>
   <div class="veh-config-grid" id="vehConfigGrid"></div>
   <button class="save-btn" onclick="saveSettings()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4zm-5 16a3 3 0 110-6 3 3 0 010 6zm3-10H5V5h10v4z"/></svg>
@@ -379,11 +408,11 @@ const MATS = [{"mat_no":3928069,"mat_desc":"MRN_6.0X6.0_200X200_200X200_600X300U
 // DEFAULT VEHICLES
 // ═══════════════════════════════════════════════════════════════
 const VEH_DEFAULTS = [
-  {name:'Truck',   color:'#1565C0',L:6.0,  W:2.2, H:2.0, mg:10, payload:7,   rate:1450},
-  {name:'Trailer', color:'#2E7D32',L:12.1, W:2.4, H:2.5, mg:23, payload:25,  rate:2330},
-  {name:'Eicher 3019',color:'#6A1B9A',L:6.1,W:2.3,H:1.8,mg:7, payload:7.5, rate:2100},
-  {name:'Mini Truck',  color:'#E65100',L:5.0,W:2.0,H:1.5,mg:5, payload:4,   rate:1200},
-  {name:'Heavy Trailer',color:'#00695C',L:14.0,W:2.5,H:3.0,mg:30,payload:32, rate:2500},
+  {name:'Truck',   color:'#1565C0',L:6.0,  W:2.2, H:2.0, mg:10, payload:7,   rate:1450, safetyStars:5, enabled:true},
+  {name:'Trailer', color:'#2E7D32',L:12.1, W:2.4, H:2.5, mg:23, payload:25,  rate:2330, safetyStars:5, enabled:true},
+  {name:'Eicher 3019',color:'#6A1B9A',L:6.1,W:2.3,H:1.8,mg:7, payload:7.5, rate:2100, safetyStars:4, enabled:true},
+  {name:'Mini Truck',  color:'#E65100',L:5.0,W:2.0,H:1.5,mg:5, payload:4,   rate:1200, safetyStars:3, enabled:true},
+  {name:'Heavy Trailer',color:'#00695C',L:14.0,W:2.5,H:3.0,mg:30,payload:32, rate:2500, safetyStars:5, enabled:true},
 ];
 let vehs = JSON.parse(localStorage.getItem('sf_vehs')||'null') || JSON.parse(JSON.stringify(VEH_DEFAULTS));
 let currentMat = null;
@@ -396,6 +425,7 @@ let activeTab = 'top';
 window.addEventListener('DOMContentLoaded', function(){
   populateMatSelect('');
   renderVehConfig();
+  updateManualVehDropdown();
 });
 
 function showPage(p){
@@ -451,6 +481,15 @@ function setMode(m){
 // ═══════════════════════════════════════════════════════════════
 // MANUAL WEIGHT CALC
 // ═══════════════════════════════════════════════════════════════
+function autoThickness(){
+  var diaMW=parseFloat(document.getElementById('mDia').value)||0;
+  var diaCW=parseFloat(document.getElementById('mDia2').value)||0;
+  var t=document.getElementById('mT');
+  if(t && (diaMW>0||diaCW>0)){
+    t.value=((diaMW+(diaCW||diaMW))).toFixed(2);
+  }
+}
+
 function calcManualWeight(){
   var L=parseFloat(document.getElementById('mL').value)||0;
   var W=parseFloat(document.getElementById('mW').value)||0;
@@ -459,26 +498,35 @@ function calcManualWeight(){
   var diaCW=parseFloat(document.getElementById('mDia2').value)||0;
   var sMW=parseFloat(document.getElementById('mSpaceMW').value)||200;
   var sCW=parseFloat(document.getElementById('mSpaceCW').value)||200;
-  var dens=parseFloat(document.getElementById('mDens').value)||7850;
+  var dens=7850; // wire steel density kg/m³ (fixed)
   if(!L||!W||!diaMW){ alert('Enter Length, Width and Wire Diameter MW at minimum.'); return; }
   var Lm=L/1000, Wm=W/1000;
-  var nMW = Math.floor(Wm/(sMW/1000))+1;
-  var nCW = Math.floor(Lm/(sCW/1000))+1;
+  var nMW = Math.floor(Wm/(sMW/1000));  // no +1: wires at spacing intervals, last wire at sheet edge
+  var nCW = Math.floor(Lm/(sCW/1000));  // corrected count matches factory specification
   var lenMW = nMW*Lm;
   var lenCW = nCW*Wm;
   var wMW = lenMW * Math.PI*Math.pow(diaMW/2000,2) * dens;
   var wCW = lenCW * Math.PI*Math.pow((diaCW||diaMW)/2000,2) * dens;
   var totalKg = wMW + wCW;
-  var thickM = T/1000 || diaMW/1000;
+  // Thickness = MW wire dia + CW wire dia (total depth of mesh)
+  var thickM = ((diaMW + (diaCW||diaMW)) / 1000);
+  // Update thickness display field
+  var thickField = document.getElementById('mT');
+  if(thickField){ thickField.value = ((diaMW + (diaCW||diaMW))).toFixed(2); }
   currentMat = {mat_no:'MANUAL',mat_desc:'Manual Entry',length_mm:L,width_mm:W,weight_kg:totalKg,thick_m:thickM};
   var out = document.getElementById('calcWeightOut');
   out.style.display = 'block';
-  out.innerHTML = 'Calculated weight: <b>'+totalKg.toFixed(3)+' kg / sheet</b> ('+nMW+' MW wires × '+nCW+' CW wires)';
+  out.innerHTML = 'Calculated weight: <b>'+totalKg.toFixed(3)+' kg / sheet</b> ('+nMW+' MW wires × '+nCW+' CW wires) &nbsp;│&nbsp; Thickness: <b>'+(thickM*1000).toFixed(2)+' mm</b> (MW '+diaMW+'mm + CW '+(diaCW||diaMW)+'mm)';
   updateTotalTon();
 }
 
 function onMirrorChange(){
   document.getElementById('mirrorOpts').style.display = document.getElementById('mirrorOn').checked?'block':'none';
+}
+
+function onManualVehChange(){
+  var on=document.getElementById('manualVehOn').checked;
+  document.getElementById('manualVehPanel').style.display=on?'block':'none';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -499,8 +547,44 @@ function updateTotalTon(){
   if(!currentMat||!qty){el.style.display='none';return;}
   var totalKg=qty*currentMat.weight_kg;
   var totalMT=totalKg/1000;
+  var sheetArea=(currentMat.length_mm/1000)*(currentMat.width_mm/1000);
+  var totalSqm=qty*sheetArea;
   el.style.display='block';
-  el.innerHTML='Total order weight: <b>'+totalMT.toFixed(3)+' MT</b> &nbsp;('+qty+' × '+currentMat.weight_kg.toFixed(3)+' kg)';
+  el.innerHTML=
+    '• Sheets: <b>'+qty+'</b>&nbsp;&nbsp;│&nbsp;&nbsp;'+
+    '• Total weight: <b>'+totalMT.toFixed(3)+' MT</b> ('+totalKg.toFixed(1)+' kg)&nbsp;&nbsp;│&nbsp;&nbsp;'+
+    '• Total area: <b>'+totalSqm.toFixed(2)+' m²</b>&nbsp;&nbsp;│&nbsp;&nbsp;'+
+    '• Per sheet: '+currentMat.weight_kg.toFixed(3)+' kg · '+sheetArea.toFixed(3)+' m²';
+}
+
+function syncQty(source){
+  if(!currentMat) return;
+  var wPerSheet=currentMat.weight_kg;
+  var aPerSheet=(currentMat.length_mm/1000)*(currentMat.width_mm/1000);
+  var qtyEl=document.getElementById('qty');
+  var mtEl=document.getElementById('qtyMT');
+  var sqmEl=document.getElementById('qtySqm');
+  var sheets=0;
+  if(source==='sheets'){
+    sheets=parseInt(qtyEl.value)||0;
+    if(sheets>0 && wPerSheet>0){ mtEl.value=(sheets*wPerSheet/1000).toFixed(3); }
+    if(sheets>0 && aPerSheet>0){ sqmEl.value=(sheets*aPerSheet).toFixed(2); }
+  } else if(source==='mt'){
+    var mt=parseFloat(mtEl.value)||0;
+    if(mt>0 && wPerSheet>0){
+      sheets=Math.round(mt*1000/wPerSheet);
+      qtyEl.value=sheets;
+      if(aPerSheet>0) sqmEl.value=(sheets*aPerSheet).toFixed(2);
+    }
+  } else if(source==='sqm'){
+    var sqm=parseFloat(sqmEl.value)||0;
+    if(sqm>0 && aPerSheet>0){
+      sheets=Math.round(sqm/aPerSheet);
+      qtyEl.value=sheets;
+      if(wPerSheet>0) mtEl.value=(sheets*wPerSheet/1000).toFixed(3);
+    }
+  }
+  updateTotalTon();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -509,22 +593,37 @@ function updateTotalTon(){
 function runCalculation(){
   if(!currentMat){alert('Please select a material or calculate manual weight first.');return;}
   var qty    = gi('qty')||1;
-  var rate   = gv('freightRate')||2105;
   var mirrorOn= gc('mirrorOn');
-  var profNest= gc('profNest');
   var nestPct = gv('nestPct')||20;
   var sideC   = gv('sideC')/1000;
   var endC    = gv('endC')/1000;
   var lgap    = gv('lgap')/1000;
   var maxT    = gi('maxT'); if(maxT<=0) maxT=9999;
-  var safeF   = gv('safeF')||0.95;
   var mL  = currentMat.length_mm/1000;
   var mW  = currentMat.width_mm/1000;
   var mT  = currentMat.thick_m||0.012;
   var mKg = currentMat.weight_kg;
 
-  // 1. Pre-compute capacity for every vehicle
-  var vcaps = vehs.map(function(v){
+  // Update mirror thickness info box
+  if(document.getElementById('mirrorThicknessInfo')){
+    if(mirrorOn){
+      var effTmm = mT*(1 - nestPct/100)*1000;
+      document.getElementById('mirrorThicknessInfo').style.display='block';
+      document.getElementById('mirrorThicknessInfo').innerHTML=
+        'Original thickness: <b>'+(mT*1000).toFixed(2)+'mm</b> &nbsp;&rarr;&nbsp; '+
+        'After mirror ('+nestPct+'% reduction): <b>'+effTmm.toFixed(2)+'mm</b>';
+    } else {
+      document.getElementById('mirrorThicknessInfo').style.display='none';
+    }
+  }
+
+  // Manual vehicle override
+  var manualVehOn = gc('manualVehOn');
+  var manualVehIdx = manualVehOn ? parseInt(document.getElementById('manualVehSelect').value) : -1;
+
+  // 1. Pre-compute capacity for every enabled vehicle
+  var activeVehs = vehs.filter(function(v){ return v.enabled !== false; });
+  var vcaps = activeVehs.map(function(v){
     var usL=v.L-2*endC; if(usL<=0)usL=v.L;
     var usW=v.W-2*sideC; if(usW<=0)usW=v.W;
     var fitL=mL<=usL+0.001, fitW=mW<=usW+0.001, fits=fitL&&fitW;
@@ -532,11 +631,18 @@ function runCalculation(){
     var pAlongL=Math.max(1,Math.floor(usL/mL));
     var pAlongW=Math.max(1,Math.floor(usW/mW));
     var ppl=pAlongL*pAlongW;
-    var effT=(mirrorOn&&profNest)?mT*(1-nestPct/100):mT;
-    if(effT<=0.0001)effT=mT; if(effT<=0.0001)effT=0.001;
-    var tierH=effT+(mirrorOn?lgap:0); if(tierH<=0.0001)tierH=0.001;
-    var maxByH=Math.min(Math.floor(v.H/tierH)||1,maxT);
-    var maxByW=Math.floor((v.payload*safeF*1000/mKg)/ppl)||0;
+    // Mirror loading: reduces effective stack height per layer
+    // effT = thickness of one sheet in the stack (with nesting, adjacent sheets interlock)
+    // When mirror is ON: each "layer step" = mT*(1-nestPct/100) because sheets nest into each other
+    // profNest adds additional ridge-valley compression on top
+    var nestFactor = mirrorOn ? (1 - nestPct/100) : 1.0;
+    var effT = mT * nestFactor;
+    if(effT<=0.0001) effT = mT; if(effT<=0.0001) effT = 0.001;
+    // tierH = height consumed per sheet in stack (effT + any remaining gap)
+    var tierH = effT + (mirrorOn ? lgap : 0);
+    if(tierH<=0.0001) tierH = 0.001;
+    var maxByH = Math.min(Math.floor(v.H/tierH)||1, maxT);
+    var maxByW=Math.floor((v.payload*1000/mKg)/ppl)||0;
     var maxLayers=Math.min(maxByH,maxByW);
     var maxPcs=maxLayers*ppl;
     var limitReason=maxByH<=maxByW?'HEIGHT':'WEIGHT';
@@ -548,18 +654,25 @@ function runCalculation(){
   });
 
   var feasible=vcaps.filter(function(c){return c.fits&&c.maxPcs>0;});
-  if(!feasible.length){
-    CR={mat:currentMat,qty:qty,rate:rate,vcaps:vcaps,optimised:null,mL:mL,mW:mW,mT:mT,mKg:mKg,mirrorOn:mirrorOn,nestPct:nestPct};
+  // Manual vehicle override: restrict planning pool
+  var planPool=feasible;
+  if(manualVehOn && manualVehIdx>=0 && activeVehs[manualVehIdx]){
+    var forcedName=activeVehs[manualVehIdx].name;
+    var forced=feasible.filter(function(c){return c.v.name===forcedName;});
+    if(forced.length) planPool=forced;
+  }
+  if(!planPool.length){
+    CR={mat:currentMat,qty:qty,vcaps:vcaps,optimised:null,mL:mL,mW:mW,mT:mT,mKg:mKg,mirrorOn:mirrorOn,nestPct:nestPct,manualVehOn:manualVehOn};
     renderResults(); return;
   }
 
-  // 2. Smart trip optimiser
-  function tripCost(pcs,vc){ var lMT=pcs*mKg/1000; return Math.max(lMT,vc.v.mg)*rate; }
-  function tripIdle(pcs,vc){ var lMT=pcs*mKg/1000; return Math.max(0,(Math.max(lMT,vc.v.mg)-lMT)*rate); }
+  // 2. Smart trip optimiser (per-vehicle rate)
+  function tripCost(pcs,vc){ var lMT=pcs*mKg/1000; return Math.max(lMT,vc.v.mg)*(vc.v.rate||2105); }
+  function tripIdle(pcs,vc){ var lMT=pcs*mKg/1000; return Math.max(0,(Math.max(lMT,vc.v.mg)-lMT)*(vc.v.rate||2105)); }
 
   var bestPlan=null, bestTotalIdle=Infinity;
 
-  feasible.forEach(function(mainVC){
+  planPool.forEach(function(mainVC){
     // Try spreading qty evenly across N, N+1, N+2 trips using mainVC
     var baseTrips=Math.ceil(qty/mainVC.maxPcs);
     for(var nTrips=Math.max(1,baseTrips-1); nTrips<=baseTrips+3; nTrips++){
@@ -582,8 +695,8 @@ function runCalculation(){
     // Try: bulk trips on mainVC, remainder trip on a DIFFERENT (smaller) vehicle
     var fullTrips=Math.floor(qty/mainVC.maxPcs);
     var rem=qty-fullTrips*mainVC.maxPcs;
-    if(rem>0){
-      feasible.forEach(function(remVC){
+    if(rem>0 && !manualVehOn){
+      planPool.forEach(function(remVC){
         if(remVC.maxPcs<rem) return;
         var idle=fullTrips*tripIdle(mainVC.maxPcs,mainVC)+tripIdle(rem,remVC);
         var cost=fullTrips*tripCost(mainVC.maxPcs,mainVC)+tripCost(rem,remVC);
@@ -605,19 +718,21 @@ function runCalculation(){
       var loadMT=pcs*mKg/1000;
       var billedMT=Math.max(loadMT,vc.v.mg);
       var idleMT=billedMT-loadMT;
-      var idle=Math.max(0,idleMT)*rate;
-      var cost=billedMT*rate;
+      var vRate=vc.v.rate||2105;
+      var idle=Math.max(0,idleMT)*vRate;
+      var cost=billedMT*vRate;
       var mgFill=loadMT/vc.v.mg*100;
-      return {tripNo:i+1,vc:vc,pcs:pcs,loadMT:loadMT,billedMT:billedMT,idleMT:idleMT,idle:idle,cost:cost,mgFill:mgFill};
+      return {tripNo:i+1,vc:vc,pcs:pcs,loadMT:loadMT,billedMT:billedMT,idleMT:idleMT,idle:idle,cost:cost,mgFill:mgFill,vRate:vRate};
     });
     bestPlan.totalLoad=bestPlan.trips.reduce(function(s,t){return s+t.loadMT;},0);
     bestPlan.avgMgFill=bestPlan.trips.reduce(function(s,t){return s+t.mgFill;},0)/bestPlan.trips.length;
   }
 
-  CR={mat:currentMat,qty:qty,rate:rate,vcaps:vcaps,optimised:bestPlan,mL:mL,mW:mW,mT:mT,mKg:mKg,mirrorOn:mirrorOn,nestPct:nestPct};
+  CR={mat:currentMat,qty:qty,vcaps:vcaps,optimised:bestPlan,mL:mL,mW:mW,mT:mT,mKg:mKg,mirrorOn:mirrorOn,nestPct:nestPct,manualVehOn:manualVehOn};
   renderResults();
   document.getElementById('statusBadge').className='tb-badge done';
   document.getElementById('statusBadge').textContent='ANALYSIS COMPLETE';
+  var dlBtn=document.getElementById('dlBtn'); if(dlBtn) dlBtn.disabled=false;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -631,21 +746,27 @@ function renderResults(){
   var html='';
 
   // Vehicle capacity analysis table
-  html+='<div class="vtable-wrap"><div class="vtable-head"><h3>Vehicle Capacity Analysis</h3></div>';
-  html+='<table class="vtable"><thead><tr><th>Vehicle</th><th>Deck (L×W×H)</th><th>MG / Payload</th><th>Status</th><th>Max Pcs/Trip</th><th>Max Weight/Trip</th><th>Limit</th></tr></thead><tbody>';
+  var manualNote = r.manualVehOn ? '<span style="margin-left:12px;font-size:11px;color:var(--amber);font-family:var(--mono);">(Manual vehicle override active)</span>' : '';
+  html+='<div class="vtable-wrap"><div class="vtable-head"><h3>Vehicle Capacity Analysis'+manualNote+'</h3></div>';
+  html+='<table class="vtable"><thead><tr><th>Vehicle</th><th>Deck (L×W×H)</th><th>MG / Payload</th><th>Safety Rating</th><th>Status</th><th>Max Pcs/Trip</th><th>Max Weight/Trip</th><th>Freight Rate</th><th>Limit</th></tr></thead><tbody>';
   r.vcaps.forEach(function(vc){
     var used=op&&op.trips.some(function(t){return t.vc.v.name===vc.v.name;});
     var rowClass=vc.fits?(used?'best-row':''):'elim-row';
     html+='<tr class="'+rowClass+'"><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+vc.v.color+';margin-right:6px;vertical-align:middle;"></span><b>'+vc.v.name+'</b></td>';
     html+='<td style="font-family:var(--mono);font-size:11px;">'+vc.v.L+'m×'+vc.v.W+'m×'+vc.v.H+'m</td>';
     html+='<td style="font-family:var(--mono);font-size:11px;">'+vc.v.mg+' MT / '+vc.v.payload+' MT</td>';
+    var stars=parseInt(vc.v.safetyStars)||3;
+    var starHtml='';
+    for(var si=1;si<=5;si++){ starHtml+='<span style="color:'+(si<=stars?'#F9A825':'#D0DEED');starHtml+=';font-size:13px;">★</span>'; }
+    html+='<td><span style="white-space:nowrap;">'+starHtml+'</span></td>';
     if(!vc.fits){
       html+='<td><span class="elim-badge">✕ '+vc.elimReason+' EXCEEDS</span></td>';
-      html+='<td colspan="3" style="color:var(--txt3);font-size:11px;">'+r.mL.toFixed(3)+'m×'+r.mW.toFixed(3)+'m exceeds '+vc.usL.toFixed(2)+'m×'+vc.usW.toFixed(2)+'m usable deck</td>';
+      html+='<td colspan="4" style="color:var(--txt3);font-size:11px;">'+r.mL.toFixed(3)+'m×'+r.mW.toFixed(3)+'m exceeds '+vc.usL.toFixed(2)+'m×'+vc.usW.toFixed(2)+'m usable deck</td>';
     } else {
       html+='<td>'+(used?'<span class="best-badge">★ USED</span>':'<span class="ok-badge">✓ AVAILABLE</span>')+'</td>';
       html+='<td style="font-family:var(--mono);">'+vc.maxPcs+'</td>';
       html+='<td style="font-family:var(--mono);">'+(vc.maxPcs*r.mKg/1000).toFixed(3)+' MT</td>';
+      html+='<td style="font-family:var(--mono);">₹'+(vc.v.rate||2105).toLocaleString('en-IN')+'/MT</td>';
       html+='<td><span class="warn-badge">'+vc.limitReason+'</span></td>';
     }
     html+='</tr>';
@@ -745,6 +866,7 @@ function renderResults(){
     html+=frow('Idle MT',t.idleMT.toFixed(3)+' MT','color:var(--red2)');
     html+=frow('Idle loss',fmtRs(t.idle),'color:var(--red2);font-weight:600');
     html+=frow('Idle loss per ton',t.loadMT>0?fmtRs(t.idle/t.loadMT)+' / ton':t.idle===0?'₹0':'—','color:var(--red2);font-weight:600');
+    html+=frow('Freight rate','₹'+(t.vRate||t.vc.v.rate||2105).toLocaleString('en-IN')+'/MT','color:var(--txt2)');
     html+=frow('Trip freight',fmtRs(t.cost),'font-weight:600');
     html+='</div>';
   });
@@ -759,13 +881,14 @@ function renderResults(){
 }
 
 function calcNaiveCost(r,mainVC){
+  var vRate=mainVC.v.rate||2105;
   var trips=Math.ceil(r.qty/mainVC.maxPcs);
   var lastPcs=r.qty-(trips-1)*mainVC.maxPcs;
   var lastLoad=lastPcs*r.mKg/1000;
   var lastBilled=Math.max(lastLoad,mainVC.v.mg);
-  var lastIdle=Math.max(0,(lastBilled-lastLoad)*r.rate);
+  var lastIdle=Math.max(0,(lastBilled-lastLoad)*vRate);
   var fullLoad=mainVC.weightPerFullTrip;
-  var fullIdle=Math.max(0,(Math.max(fullLoad,mainVC.v.mg)-fullLoad)*r.rate);
+  var fullIdle=Math.max(0,(Math.max(fullLoad,mainVC.v.mg)-fullLoad)*vRate);
   var totalIdle=(trips-1)*fullIdle+lastIdle;
   return {trips:trips,lastPcs:lastPcs,lastIdle:lastIdle,idle:totalIdle,mainVCName:mainVC.v.name};
 }
@@ -894,23 +1017,56 @@ function renderVehConfig(){
   g.innerHTML='';
   vehs.forEach(function(v,i){
     var c=v.color||colors[i];
+    var enabled=(v.enabled!==false);
     var d=document.createElement('div');
     d.className='veh-cfg-card';
+    d.style.opacity=enabled?'1':'0.5';
+    var stars=parseInt(v.safetyStars)||3;
+    // Build star rating HTML (interactive)
+    var starHtml='<div style="display:flex;gap:3px;margin-bottom:6px;">';
+    for(var si=1;si<=5;si++){
+      starHtml+='<span onclick="vehs['+i+'].safetyStars='+si+';renderVehConfig();" style="font-size:20px;cursor:pointer;color:'+(si<=stars?'#F9A825':'#D0DEED')+';line-height:1;">★</span>';
+    }
+    starHtml+='</div><div style="font-size:9px;color:var(--txt3);letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;">Safety rating: '+stars+' star'+(stars!==1?'s':'')+'</div>';
     d.innerHTML=
-      '<div class="vcfg-head" style="background:'+c+'20;border-bottom:1px solid '+c+'30;">'+
-        '<span style="width:12px;height:12px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0;"></span>'+
-        '<input type="text" value="'+v.name+'" onchange="vehs['+i+'].name=this.value" style="border:none;background:transparent;font-size:11px;font-weight:600;color:'+c+';padding:0;width:100%;outline:none;">'+
+      '<div class="vcfg-head" style="background:'+c+'20;border-bottom:1px solid '+c+'30;display:flex;align-items:center;justify-content:space-between;">'+
+        '<div style="display:flex;align-items:center;gap:6px;flex:1;">'+
+          '<span style="width:12px;height:12px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0;"></span>'+
+          '<input type="text" value="'+v.name+'" onchange="vehs['+i+'].name=this.value" style="border:none;background:transparent;font-size:11px;font-weight:600;color:'+c+';padding:0;width:100%;outline:none;">'+
+        '</div>'+
+        '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-left:8px;flex-shrink:0;" title="Enable/disable vehicle">'+
+          '<span style="font-size:9px;color:var(--txt3);">'+(enabled?'ON':'OFF')+'</span>'+
+          '<input type="checkbox" '+(enabled?'checked':'')+ ' onchange="vehs['+i+'].enabled=this.checked;renderVehConfig();" style="width:auto;cursor:pointer;">'+
+        '</label>'+
       '</div>'+
       '<div class="vcfg-body">'+
-        '<div><label>Deck L (m)</label><input type="number" value="'+v.L+'" step="0.1" onchange="vehs['+i+'].L=parseFloat(this.value)||6"></div>'+
-        '<div><label>Deck W (m)</label><input type="number" value="'+v.W+'" step="0.1" onchange="vehs['+i+'].W=parseFloat(this.value)||2.2"></div>'+
-        '<div><label>Stack H (m)</label><input type="number" value="'+v.H+'" step="0.1" onchange="vehs['+i+'].H=parseFloat(this.value)||2"></div>'+
-        '<div><label>Payload MT</label><input type="number" value="'+v.payload+'" step="0.5" onchange="vehs['+i+'].payload=parseFloat(this.value)||7"></div>'+
-        '<div><label>MG (MT)</label><input type="number" value="'+v.mg+'" step="0.5" onchange="vehs['+i+'].mg=parseFloat(this.value)||10"></div>'+
-        '<div><label>Rate ₹/MT</label><input type="number" value="'+v.rate+'" step="50" onchange="vehs['+i+'].rate=parseFloat(this.value)||1500"></div>'+
+        '<div><label>Deck L (m)</label><input type="number" value="'+v.L+'" step="0.1" '+(enabled?'':'disabled')+'  onchange="vehs['+i+'].L=parseFloat(this.value)||6"></div>'+
+        '<div><label>Deck W (m)</label><input type="number" value="'+v.W+'" step="0.1" '+(enabled?'':'disabled')+' onchange="vehs['+i+'].W=parseFloat(this.value)||2.2"></div>'+
+        '<div><label>Stack H (m)</label><input type="number" value="'+v.H+'" step="0.1" '+(enabled?'':'disabled')+' onchange="vehs['+i+'].H=parseFloat(this.value)||2"></div>'+
+        '<div><label>Payload MT</label><input type="number" value="'+v.payload+'" step="0.5" '+(enabled?'':'disabled')+' onchange="vehs['+i+'].payload=parseFloat(this.value)||7"></div>'+
+        '<div><label>MG (MT)</label><input type="number" value="'+v.mg+'" step="0.5" '+(enabled?'':'disabled')+' onchange="vehs['+i+'].mg=parseFloat(this.value)||10"></div>'+
+        '<div><label>Rate ₹/MT</label><input type="number" value="'+v.rate+'" step="50" '+(enabled?'':'disabled')+' onchange="vehs['+i+'].rate=parseFloat(this.value)||1500"></div>'+
+        '<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;"><label>Safety Stars (click to set)</label>'+starHtml+'</div>'+
       '</div>';
     g.appendChild(d);
   });
+  // Also refresh the manual vehicle dropdown
+  updateManualVehDropdown();
+}
+
+function updateManualVehDropdown(){
+  var sel=document.getElementById('manualVehSelect');
+  if(!sel) return;
+  var prev=sel.value;
+  sel.innerHTML='<option value="">— auto select —</option>';
+  var activeVehs=vehs.filter(function(v){return v.enabled!==false;});
+  activeVehs.forEach(function(v,i){
+    var o=document.createElement('option');
+    o.value=i;
+    o.textContent=v.name+' ('+v.L+'m × '+v.W+'m, '+v.payload+'MT)';
+    sel.appendChild(o);
+  });
+  sel.value=prev;
 }
 
 function saveSettings(){
@@ -919,8 +1075,191 @@ function saveSettings(){
   setTimeout(function(){document.getElementById('saveMsg').style.display='none';},2500);
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+// DOWNLOAD REPORT
+// ═══════════════════════════════════════════════════════════════
+function downloadReport(){
+  if(!CR) return;
+  var r=CR, op=r.optimised;
+  var now=new Date();
+  var dateStr=now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  var timeStr=now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+
+  // ── HELPERS ──
+  function h(v){return v==null?'—':v;}
+  function fRS(v){return '₹'+Math.round(v).toLocaleString('en-IN');}
+  function fMT(v){return v.toFixed(3)+' MT';}
+  function fPct(v){return Math.min(v,999).toFixed(1)+'%';}
+  function stars(n){var s='';for(var i=1;i<=5;i++)s+=(i<=n?'★':'☆');return s;}
+  function clrBadge(p){return p>=90?'#2E7D32':p>=60?'#E65100':'#C62828';}
+
+  // ── INPUT SUMMARY ──
+  var mirrorOn=r.mirrorOn, nestPct=r.nestPct;
+  var matMode = r.mat.mat_no==='MANUAL'?'Manual Entry':'Material Database';
+  var inputRows='';
+  inputRows+='<tr><td>Material No.</td><td>'+h(r.mat.mat_no)+'</td></tr>';
+  inputRows+='<tr><td>Description</td><td>'+h(r.mat.mat_desc)+'</td></tr>';
+  inputRows+='<tr><td>Length × Width</td><td>'+(r.mL*1000).toFixed(0)+' mm × '+(r.mW*1000).toFixed(0)+' mm</td></tr>';
+  inputRows+='<tr><td>Thickness</td><td>'+(r.mT*1000).toFixed(2)+' mm</td></tr>';
+  inputRows+='<tr><td>Weight / Sheet</td><td>'+r.mKg.toFixed(3)+' kg</td></tr>';
+  inputRows+='<tr><td>Order Qty</td><td>'+r.qty+' sheets</td></tr>';
+  inputRows+='<tr><td>Total Weight</td><td>'+(r.qty*r.mKg/1000).toFixed(3)+' MT</td></tr>';
+  inputRows+='<tr><td>Total Area</td><td>'+(r.qty*(r.mL)*(r.mW)).toFixed(2)+' m²</td></tr>';
+  inputRows+='<tr><td>Mirror Loading</td><td>'+(mirrorOn?'Yes — '+nestPct+'% nesting reduction':'No')+'</td></tr>';
+  if(mirrorOn){
+    inputRows+='<tr><td>Effective Thickness</td><td>'+(r.mT*(1-nestPct/100)*1000).toFixed(2)+' mm (after '+nestPct+'% reduction)</td></tr>';
+  }
+  inputRows+='<tr><td>Entry Mode</td><td>'+matMode+'</td></tr>';
+
+  // ── VEHICLE ANALYSIS ──
+  var vRows='';
+  r.vcaps.forEach(function(vc){
+    var used=op&&op.trips.some(function(t){return t.vc.v.name===vc.v.name;});
+    var statusTxt=!vc.fits?('✕ '+vc.elimReason+' EXCEEDS'):used?'★ USED':'✓ AVAILABLE';
+    var statusClr=!vc.fits?'#C62828':used?'#1565C0':'#2E7D32';
+    var starStr=stars(parseInt(vc.v.safetyStars)||3);
+    vRows+='<tr>';
+    vRows+='<td><b>'+vc.v.name+'</b></td>';
+    vRows+='<td>'+vc.v.L+'m × '+vc.v.W+'m × '+vc.v.H+'m</td>';
+    vRows+='<td>'+vc.v.mg+' MT / '+vc.v.payload+' MT</td>';
+    vRows+='<td>'+starStr+'</td>';
+    vRows+='<td style="color:'+statusClr+';font-weight:600;">'+statusTxt+'</td>';
+    vRows+='<td>'+(vc.fits?vc.maxPcs:'—')+'</td>';
+    vRows+='<td>'+(vc.fits?(vc.maxPcs*r.mKg/1000).toFixed(3)+' MT':'—')+'</td>';
+    vRows+='<td>₹'+(vc.v.rate||2105).toLocaleString('en-IN')+'/MT</td>';
+    vRows+='<td>'+(vc.fits?vc.limitReason:'—')+'</td>';
+    vRows+='</tr>';
+  });
+
+  // ── DISPATCH TABLE ──
+  var dispRows='', dispTotal='';
+  var totalPcs=0,totalLoad=0,totalBilled=0,totalIdle=0,totalCost=0;
+  if(op){
+    op.trips.forEach(function(t){
+      totalPcs+=t.pcs; totalLoad+=t.loadMT; totalBilled+=t.billedMT;
+      totalIdle+=t.idle; totalCost+=t.cost;
+      var mgClr=clrBadge(t.mgFill);
+      dispRows+='<tr>';
+      dispRows+='<td>#'+t.tripNo+'</td>';
+      dispRows+='<td>'+t.vc.v.name+'</td>';
+      dispRows+='<td>'+t.pcs+'</td>';
+      dispRows+='<td>'+t.loadMT.toFixed(3)+'</td>';
+      dispRows+='<td>'+t.billedMT.toFixed(3)+(t.billedMT>t.loadMT+0.001?' <small>(MG)</small>':'')+'</td>';
+      dispRows+='<td style="color:'+mgClr+';font-weight:600;">'+fPct(t.mgFill)+'</td>';
+      dispRows+='<td style="color:'+(t.idle>0?'#C62828':'#2E7D32')+';">'+t.idleMT.toFixed(3)+'</td>';
+      dispRows+='<td style="color:'+(t.idle>0?'#C62828':'#2E7D32')+';">'+fRS(t.idle)+'</td>';
+      dispRows+='<td>₹'+(t.vRate||t.vc.v.rate||2105).toLocaleString('en-IN')+'/MT</td>';
+      dispRows+='<td style="font-weight:600;">'+fRS(t.cost)+'</td>';
+      dispRows+='</tr>';
+    });
+    var avgFill=op.avgMgFill;
+    dispTotal='<tr style="background:#0a1628;color:white;font-weight:600;">';
+    dispTotal+='<td colspan="2">TOTAL — '+op.trips.length+' trip(s)</td>';
+    dispTotal+='<td>'+totalPcs+'</td>';
+    dispTotal+='<td>'+totalLoad.toFixed(3)+'</td>';
+    dispTotal+='<td>'+totalBilled.toFixed(3)+'</td>';
+    dispTotal+='<td>'+fPct(avgFill)+' avg</td>';
+    dispTotal+='<td>'+(totalBilled-totalLoad).toFixed(3)+'</td>';
+    dispTotal+='<td>'+fRS(totalIdle)+'</td>';
+    dispTotal+='<td>—</td>';
+    dispTotal+='<td>'+fRS(totalCost)+'</td>';
+    dispTotal+='</tr>';
+  }
+
+  // ── SUMMARY CARDS TEXT ──
+  var summaryRows='';
+  if(op){
+    summaryRows+='<tr><td>Optimised Trips</td><td>'+op.trips.length+'</td></tr>';
+    summaryRows+='<tr><td>Total Pieces Dispatched</td><td>'+totalPcs+' / '+r.qty+'</td></tr>';
+    summaryRows+='<tr><td>Total Cargo Weight</td><td>'+fMT(totalLoad)+'</td></tr>';
+    summaryRows+='<tr><td>Avg MG Fill</td><td>'+fPct(op.avgMgFill)+'</td></tr>';
+    summaryRows+='<tr><td>Total Freight Cost</td><td>'+fRS(totalCost)+'</td></tr>';
+    summaryRows+='<tr><td>Total Idle Loss</td><td>'+fRS(totalIdle)+'</td></tr>';
+    summaryRows+='<tr><td>Vehicles Used</td><td>';
+    var seen={},names=[];
+    op.trips.forEach(function(t){if(!seen[t.vc.v.name]){seen[t.vc.v.name]=1;names.push(t.vc.v.name);}});
+    summaryRows+=names.join(', ')+'</td></tr>';
+    if(r.manualVehOn) summaryRows+='<tr><td>Mode</td><td>Manual Vehicle Override</td></tr>';
+  } else {
+    summaryRows+='<tr><td colspan="2" style="color:#C62828;">No feasible vehicle found for this load.</td></tr>';
+  }
+
+  // ── HTML REPORT ──
+  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">';
+  html+='<title>SM@RTFAB Report — '+dateStr+'</title>';
+  html+='<style>';
+  html+='*{box-sizing:border-box;margin:0;padding:0;}';
+  html+='body{font-family:"DM Sans",Arial,sans-serif;font-size:13px;color:#0D1B2A;background:#F7FAFF;padding:30px;}';
+  html+='.report-wrap{max-width:1100px;margin:0 auto;background:white;border-radius:10px;box-shadow:0 2px 24px rgba(21,101,192,.13);overflow:hidden;}';
+  html+='.rpt-header{background:linear-gradient(135deg,#0a1628 0%,#0f2040 60%,#0d2f5e 100%);padding:28px 32px;display:flex;justify-content:space-between;align-items:flex-start;}';
+  html+='.rpt-brand{font-family:"DM Mono",monospace;font-size:22px;font-weight:500;color:#90CAF9;letter-spacing:3px;}';
+  html+='.rpt-title{font-size:13px;color:#8BAFD4;margin-top:4px;}';
+  html+='.rpt-meta{text-align:right;font-size:11px;color:#8BAFD4;line-height:1.8;}';
+  html+='.section{padding:24px 32px;border-bottom:1px solid #D0DEED;}';
+  html+='.section:last-child{border-bottom:none;}';
+  html+='.sec-title{font-size:11px;font-weight:600;color:#1565C0;letter-spacing:.8px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}';
+  html+='.sec-title::before{content:"";display:inline-block;width:3px;height:14px;background:#1565C0;border-radius:2px;}';
+  html+='table{width:100%;border-collapse:collapse;font-size:12px;}';
+  html+='th{background:#E3F2FD;text-align:left;padding:8px 10px;font-size:10px;font-weight:600;color:#1565C0;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid #BBDEFB;}';
+  html+='td{padding:8px 10px;border-bottom:1px solid #D0DEED;vertical-align:middle;}';
+  html+='tr:last-child td{border-bottom:none;}';
+  html+='.kv-table td:first-child{font-weight:500;color:#3C5A7A;width:42%;}';
+  html+='.kv-table td:last-child{font-family:"DM Mono",monospace;}';
+  html+='.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}';
+  html+='.card{background:#F7FAFF;border:1px solid #D0DEED;border-radius:8px;padding:16px;}';
+  html+='.card-title{font-size:10px;font-weight:600;color:#6B8BAD;letter-spacing:.6px;text-transform:uppercase;margin-bottom:10px;}';
+  html+='.footer{background:#0a1628;padding:16px 32px;text-align:center;font-size:10px;color:#8BAFD4;letter-spacing:.5px;}';
+  html+='</style></head><body>';
+
+  html+='<div class="report-wrap">';
+
+  // Header
+  html+='<div class="rpt-header">';
+  html+='<div><div class="rpt-brand">SM@RTFAB</div><div class="rpt-title">Load Optimisation &amp; Vehicle Selection Report</div></div>';
+  html+='<div class="rpt-meta">Generated: '+dateStr+' '+timeStr+'<br>Material: '+h(r.mat.mat_no)+'<br>Order: '+r.qty+' sheets · '+(r.qty*r.mKg/1000).toFixed(2)+' MT</div>';
+  html+='</div>';
+
+  // Input Summary
+  html+='<div class="section"><div class="sec-title">Input Summary</div>';
+  html+='<div class="two-col">';
+  html+='<div class="card"><div class="card-title">Material &amp; Cargo</div><table class="kv-table">'+inputRows+'</table></div>';
+  html+='<div class="card"><div class="card-title">Optimisation Result</div><table class="kv-table">'+summaryRows+'</table></div>';
+  html+='</div></div>';
+
+  // Vehicle Analysis
+  html+='<div class="section"><div class="sec-title">Vehicle Capacity Analysis</div>';
+  html+='<table><thead><tr><th>Vehicle</th><th>Deck (L×W×H)</th><th>MG / Payload</th><th>Safety</th><th>Status</th><th>Max Pcs</th><th>Max Weight</th><th>Rate</th><th>Limit</th></tr></thead><tbody>';
+  html+=vRows;
+  html+='</tbody></table></div>';
+
+  // Dispatch Plan
+  if(op){
+    html+='<div class="section"><div class="sec-title">Optimised Dispatch Plan</div>';
+    html+='<table><thead><tr><th>#</th><th>Vehicle</th><th>Pieces</th><th>Cargo MT</th><th>Billed MT</th><th>MG Fill</th><th>Idle MT</th><th>Idle Loss</th><th>Rate</th><th>Trip Freight</th></tr></thead><tbody>';
+    html+=dispRows+dispTotal;
+    html+='</tbody></table></div>';
+  }
+
+  html+='<div class="footer">SM@RTFAB · Load Optimisation System · Report generated '+dateStr+' '+timeStr+'</div>';
+  html+='</div></body></html>';
+
+  // Download
+  var blob=new Blob([html],{type:'text/html'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  var safeDate=now.toISOString().slice(0,10);
+  var safeMat=String(r.mat.mat_no).replace(/[^a-zA-Z0-9]/g,'_');
+  a.href=url;
+  a.download='SmartFab_Report_'+safeMat+'_'+safeDate+'.html';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+}
+
 // init select
 populateMatSelect('');
+updateManualVehDropdown();
 </script>
 </body>
 </html>
